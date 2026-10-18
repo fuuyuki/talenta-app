@@ -30,8 +30,6 @@ COPY --from=builder /app/dist ./dist
 
 # Copy the generated Prisma client and node_modules from builder
 COPY --from=builder /app/src/generated ./src/generated
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 EXPOSE 3001
 CMD ["node", "dist/main.js"]
