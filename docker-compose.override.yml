@@ -1,0 +1,17 @@
+services:
+  backend:
+    volumes:
+      - ./backend:/app
+      - /app/node_modules  # Prevents host OS node_modules from overwriting container's
+    command: npm run start:dev
+    environment:
+      NODE_ENV: development
+
+  frontend:
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+    environment:
+      NODE_ENV: development

@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model articles {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  author_id    String    @db.Uuid
+  slug         String    @unique
+  title        String
+  excerpt      String?
+  body_md      String
+  published    Boolean   @default(false)
+  published_at DateTime? @db.Timestamptz(6)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  users        users     @relation(fields: [author_id], references: [id], onUpdate: NoAction)
+}
+
+model cities {
+  id              Int               @id @default(autoincrement())
+  name            String            @unique
+  member_profiles member_profiles[]
+}
+
+model groups {
+  id                            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                          String
+  mentor_id                     String?    @db.Uuid
+  created_at                    DateTime   @default(now()) @db.Timestamptz(6)
+  users_groups_mentor_idTousers users?     @relation("groups_mentor_idTousers", fields: [mentor_id], references: [id], onUpdate: NoAction, map: "fk_groups_mentor")
+  sessions                      sessions[]
+  users_users_group_idTogroups  users[]    @relation("users_group_idTogroups")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model member_profiles {
+  user_id         String        @id @db.Uuid
+  full_name       String
+  gender          String?
+  birth_place     String?
+  birth_date      DateTime?     @db.Date
+  address         String?
+  phone           String?
+  sma_id          Int?
+  domisili_id     Int?
+  occupation_id   Int?
+  university_id   Int?
+  faculty         String?
+  major           String?
+  entry_year      Int?          @db.SmallInt
+  graduation_year Int?          @db.SmallInt
+  mentorship_tier String?
+  activity_status String        @default("active")
+  created_at      DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime      @default(now()) @db.Timestamptz(6)
+  cities          cities?       @relation(fields: [domisili_id], references: [id], onUpdate: NoAction)
+  occupations     occupations?  @relation(fields: [occupation_id], references: [id], onUpdate: NoAction)
+  schools         schools?      @relation(fields: [sma_id], references: [id], onUpdate: NoAction)
+  universities    universities? @relation(fields: [university_id], references: [id], onUpdate: NoAction)
+  users           users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model occupations {
+  id              Int               @id @default(autoincrement())
+  name            String            @unique
+  member_profiles member_profiles[]
+}
+
+model organizations {
+  id                 Int                  @id @default(autoincrement())
+  name               String               @unique
+  category           String?
+  user_organizations user_organizations[]
+}
+
+model schools {
+  id              Int               @id @default(autoincrement())
+  name            String            @unique
+  member_profiles member_profiles[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model sessions {
+  id                              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id                        String?   @db.Uuid
+  mentor_id                       String?   @db.Uuid
+  mentee_id                       String?   @db.Uuid
+  scheduled_at                    DateTime? @db.Timestamptz(6)
+  completed_at                    DateTime? @db.Timestamptz(6)
+  title                           String?
+  agenda                          String?
+  notes                           String?
+  private_notes                   String?
+  status                          String    @default("scheduled")
+  created_at                      DateTime  @default(now()) @db.Timestamptz(6)
+  groups                          groups?   @relation(fields: [group_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_sessions_mentee_idTousers users?    @relation("sessions_mentee_idTousers", fields: [mentee_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_sessions_mentor_idTousers users?    @relation("sessions_mentor_idTousers", fields: [mentor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model universities {
+  id              Int               @id @default(autoincrement())
+  name            String            @unique
+  member_profiles member_profiles[]
+}
+
+model user_organizations {
+  user_id         String        @db.Uuid
+  organization_id Int
+  joined_at       DateTime?     @default(now()) @db.Timestamptz(6)
+  organizations   organizations @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users           users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, organization_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model users {
+  id                                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                              String               @unique
+  password_hash                      String
+  role                               String
+  is_active                          Boolean              @default(true)
+  group_id                           String?              @db.Uuid
+  mentor_id                          String?              @db.Uuid
+  created_at                         DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at                         DateTime             @default(now()) @db.Timestamptz(6)
+  articles                           articles[]
+  groups_groups_mentor_idTousers     groups[]             @relation("groups_mentor_idTousers")
+  member_profiles                    member_profiles?
+  sessions_sessions_mentee_idTousers sessions[]           @relation("sessions_mentee_idTousers")
+  sessions_sessions_mentor_idTousers sessions[]           @relation("sessions_mentor_idTousers")
+  user_organizations                 user_organizations[]
+  groups_users_group_idTogroups      groups?              @relation("users_group_idTogroups", fields: [group_id], references: [id], onUpdate: NoAction)
+  users                              users?               @relation("usersTousers", fields: [mentor_id], references: [id], onUpdate: NoAction)
+  other_users                        users[]              @relation("usersTousers")
+
+  @@index([group_id], map: "idx_users_group")
+  @@index([mentor_id], map: "idx_users_mentor")
+  @@index([role], map: "idx_users_role")
+}
