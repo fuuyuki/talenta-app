@@ -143,3 +143,16 @@ CREATE TABLE articles (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- ------------------------------------------------------------
+-- 8. REGISTRATION REQUESTS (Tickets)
+-- ------------------------------------------------------------
+CREATE TABLE registration_requests (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    full_name       TEXT NOT NULL,
+    email           TEXT NOT NULL UNIQUE, -- Ensures they can't submit twice
+    phone           TEXT,
+    reason          TEXT,                 -- Why they want to join
+    status          TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')) DEFAULT 'pending',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
