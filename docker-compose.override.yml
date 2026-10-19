@@ -1,13 +1,22 @@
 services:
   backend:
+    build:
+      context: ./backend
+      # Development stage: includes the Nest CLI and other dev dependencies.
+      target: dev
     volumes:
       - ./backend:/app
-      - /app/node_modules  # Prevents host OS node_modules from overwriting container's
-    command: npm run start:dev
+      - /app/node_modules # Prevents host OS node_modules from overwriting container's
+    # Regenerate the client because the bind mount hides the built one.
+    command: sh -c "npx prisma generate && npm run start:dev"
     environment:
       NODE_ENV: development
 
   frontend:
+    build:
+      context: ./frontend
+      # Development stage: includes the Next.js CLI for `next dev`.
+      target: dev
     volumes:
       - ./frontend:/app
       - /app/node_modules

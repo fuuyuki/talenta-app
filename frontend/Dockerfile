@@ -2,9 +2,6 @@
 FROM node:24-alpine AS builder
 WORKDIR /app
 
-# Pin npm to the version that generated package-lock.json (see backend Dockerfile).
-RUN npm install -g npm@11.19.1
-
 ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY package*.json ./
@@ -12,6 +9,19 @@ RUN npm ci --no-audit --no-fund --registry=https://registry.npmmirror.com
 
 COPY . .
 RUN npm run build
+
+# ---- Development stage (used by docker-compose.override.yml) ----
+FROM node:24-alpine AS dev
+WORKDIR /app
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+COPY package*.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY . .
+
+CMD ["npm", "run", "dev"]
 
 # ---- Runtime stage ----
 FROM node:24-alpine AS runner
