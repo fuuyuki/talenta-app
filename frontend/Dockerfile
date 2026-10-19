@@ -2,10 +2,13 @@
 FROM node:24-alpine AS builder
 WORKDIR /app
 
+# Pin npm to the version that generated package-lock.json (see backend Dockerfile).
+RUN npm install -g npm@11.19.1
+
 ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY package*.json ./
-RUN npm ci --no-audit --no-fund
+RUN npm ci --no-audit --no-fund --registry=https://registry.npmmirror.com
 
 COPY . .
 RUN npm run build
