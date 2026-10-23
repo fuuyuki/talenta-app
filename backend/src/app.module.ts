@@ -1,15 +1,17 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { PrismaService } from './prisma.service';
+import { PrismaModule } from './prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { ArticlesModule } from './articles/articles.module';
+import { AdminModule } from './admin/admin.module';
 import { UsersController } from './users/users.controller';
 import { UsersService } from './users/users.service';
+import { SuperadminBootstrapService } from './bootstrap/superadmin-bootstrap.service';
 
 @Module({
-  imports: [AuthModule, ArticlesModule],
+  imports: [PrismaModule, AuthModule, ArticlesModule, AdminModule],
   controllers: [AppController, UsersController],
-  providers: [AppService, PrismaService, UsersService],
+  providers: [AppService, UsersService, SuperadminBootstrapService],
 })
 export class AppModule {}

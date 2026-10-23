@@ -4,7 +4,6 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { PrismaService } from '../prisma.service';
 
 type JwtExpiresIn = `${number}${'s' | 'm' | 'h' | 'd' | 'w' | 'y'}`;
 const jwtExpiresIn = (process.env.JWT_EXPIRES_IN ?? '1d') as JwtExpiresIn;
@@ -18,6 +17,6 @@ const jwtExpiresIn = (process.env.JWT_EXPIRES_IN ?? '1d') as JwtExpiresIn;
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, PrismaService],
+  providers: [AuthService, JwtStrategy],
 })
 export class AuthModule {}

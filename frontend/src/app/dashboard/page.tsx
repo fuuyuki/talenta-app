@@ -56,6 +56,14 @@ export default function DashboardPage() {
       <p className="text-gray-600">Role: {user.role}</p>
 
       <div className="mt-8 flex flex-wrap gap-3">
+        {user.role === 'admin' && (
+          <Link
+            href="/admin/users"
+            className="rounded bg-emerald-900 px-4 py-2 text-white transition hover:bg-emerald-950"
+          >
+            Kelola Anggota
+          </Link>
+        )}
         <Link
           href="/"
           className="rounded bg-slate-900 px-4 py-2 text-white transition hover:bg-slate-800"

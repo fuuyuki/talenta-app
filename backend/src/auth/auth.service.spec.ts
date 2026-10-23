@@ -1,10 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
-import {
-  BadRequestException,
-  ConflictException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma.service';
@@ -14,7 +10,6 @@ describe('AuthService', () => {
   let prisma: {
     users: {
       findUnique: jest.Mock;
-      create: jest.Mock;
     };
   };
   let jwtService: { sign: jest.Mock };
@@ -23,7 +18,6 @@ describe('AuthService', () => {
     prisma = {
       users: {
         findUnique: jest.fn(),
-        create: jest.fn(),
       },
     };
     jwtService = { sign: jest.fn().mockReturnValue('signed-token') };
@@ -41,61 +35,6 @@ describe('AuthService', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
-  });
-
-  describe('register', () => {
-    it('creates a user with a hashed password', async () => {
-      prisma.users.findUnique.mockResolvedValue(null);
-      prisma.users.create.mockResolvedValue({ id: 'user-1' });
-
-      const result = await service.register(
-        'user@example.com',
-        'secret',
-        'mentor',
-      );
-
-      expect(prisma.users.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          email: 'user@example.com',
-          role: 'mentor',
-        }),
-      });
-      const { password_hash } = prisma.users.create.mock.calls[0][0].data;
-      expect(password_hash).not.toBe('secret');
-      expect(await bcrypt.compare('secret', password_hash)).toBe(true);
-      expect(result).toEqual({
-        message: 'User registered successfully',
-        userId: 'user-1',
-      });
-    });
-
-    it('defaults the role to mentee', async () => {
-      prisma.users.findUnique.mockResolvedValue(null);
-      prisma.users.create.mockResolvedValue({ id: 'user-1' });
-
-      await service.register('user@example.com', 'secret');
-
-      expect(prisma.users.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ role: 'mentee' }),
-      });
-    });
-
-    it('rejects an email that is already registered', async () => {
-      prisma.users.findUnique.mockResolvedValue({ id: 'user-1' });
-
-      await expect(
-        service.register('user@example.com', 'secret'),
-      ).rejects.toBeInstanceOf(ConflictException);
-      expect(prisma.users.create).not.toHaveBeenCalled();
-    });
-
-    it('rejects an admin role', async () => {
-      await expect(
-        service.register('user@example.com', 'secret', 'admin'),
-      ).rejects.toBeInstanceOf(BadRequestException);
-      expect(prisma.users.findUnique).not.toHaveBeenCalled();
-      expect(prisma.users.create).not.toHaveBeenCalled();
-    });
   });
 
   describe('login', () => {
@@ -119,6 +58,18 @@ describe('AuthService', () => {
       expect(result).toEqual({
         access_token: 'signed-token',
         user: { id: 'user-1', email: 'user@example.com', role: 'mentee' },
+      });
+    });
+
+    it('normalizes the email before lookup', async () => {
+      prisma.users.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.login(' User@Example.com ', 'secret'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+
+      expect(prisma.users.findUnique).toHaveBeenCalledWith({
+        where: { email: 'user@example.com' },
       });
     });
 
@@ -158,6 +109,13 @@ describe('AuthService', () => {
         service.login('user@example.com', 'secret'),
       ).rejects.toBeInstanceOf(UnauthorizedException);
       expect(jwtService.sign).not.toHaveBeenCalled();
+    });
+
+    it('rejects missing credentials', async () => {
+      await expect(service.login('', '')).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+      expect(prisma.users.findUnique).not.toHaveBeenCalled();
     });
   });
 });

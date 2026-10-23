@@ -1,10 +1,13 @@
-import { ExtractJwt, Strategy } from 'passport-jwt';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable } from '@nestjs/common';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+import { PrismaService } from '../prisma.service';
+
+type JwtPayload = { sub?: string };
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
+  constructor(private readonly prisma: PrismaService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -12,8 +15,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  // Whatever this returns gets attached to the 'req.user' object
-  async validate(payload: any) {
-    return { userId: payload.sub, email: payload.email, role: payload.role };
+  async validate(payload: JwtPayload) {
+    if (!payload.sub) {
+      throw new UnauthorizedException();
+    }
+
+    // Re-read the user on every authenticated request so deactivation and role
+    // changes take effect immediately instead of waiting for the token to expire.
+    const user = await this.prisma.users.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, email: true, role: true, is_active: true },
+    });
+
+    if (!user || !user.is_active) {
+      throw new UnauthorizedException();
+    }
+
+    return { userId: user.id, email: user.email, role: user.role };
   }
 }

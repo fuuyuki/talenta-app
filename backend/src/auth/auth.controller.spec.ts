@@ -5,13 +5,11 @@ import { AuthService } from './auth.service';
 describe('AuthController', () => {
   let controller: AuthController;
   let authService: {
-    register: jest.Mock;
     login: jest.Mock;
   };
 
   beforeEach(async () => {
     authService = {
-      register: jest.fn(),
       login: jest.fn(),
     };
 
@@ -25,23 +23,6 @@ describe('AuthController', () => {
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
-  });
-
-  it('delegates register to AuthService', async () => {
-    authService.register.mockResolvedValue({ userId: 'user-1' });
-
-    const result = await controller.register({
-      email: 'user@example.com',
-      password: 'secret',
-      role: 'mentee',
-    });
-
-    expect(authService.register).toHaveBeenCalledWith(
-      'user@example.com',
-      'secret',
-      'mentee',
-    );
-    expect(result).toEqual({ userId: 'user-1' });
   });
 
   it('delegates login to AuthService', async () => {
