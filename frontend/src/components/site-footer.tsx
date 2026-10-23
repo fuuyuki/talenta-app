@@ -58,7 +58,7 @@ export function SiteFooter() {
 
       <div className="border-t border-white/10">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-5 text-xs text-emerald-100/50 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-          <p>© {new Date().getFullYear()} Yayasan Talenta Insan Nusantara.</p>
+          <p>© Yayasan Talenta Insan Nusantara.</p>
           <p>Menumbuhkan talenta, menebar manfaat.</p>
         </div>
       </div>
