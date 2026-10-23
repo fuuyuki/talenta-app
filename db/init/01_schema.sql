@@ -1,6 +1,12 @@
 -- ============================================================
 -- TALENTA SCHEMA (Kader & Mentorship System)
 -- ============================================================
+-- Two distinct concepts:
+--   members  -> the roster: all people the yayasan tracks, with or without
+--               a login account (bulky demographic / academic data).
+--   users    -> authentication + authorisation only. A user may be linked
+--               to at most one member; admins may exist without one.
+-- See db/migrations/README.md for how existing databases are upgraded.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";  -- for gen_random_uuid()
 
@@ -28,7 +34,7 @@ CREATE TABLE universities (
 );
 
 -- ------------------------------------------------------------
--- 2. ORGANIZATIONS (Many-to-Many for user)
+-- 2. ORGANIZATIONS (Many-to-Many for member)
 -- ------------------------------------------------------------
 CREATE TABLE organizations (
     id SERIAL PRIMARY KEY,
@@ -37,36 +43,61 @@ CREATE TABLE organizations (
 );
 
 -- ------------------------------------------------------------
--- 3. GROUPS (Mentorship groups)
--- ------------------------------------------------------------
-CREATE TABLE groups (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    mentor_id UUID, -- Added FK later to avoid circular dependency
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- ------------------------------------------------------------
--- 4. USERS (Base authentication)
+-- 3. USERS (Authentication only)
 -- ------------------------------------------------------------
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    group_id UUID REFERENCES groups(id) ON DELETE SET NULL,
-    mentor_id UUID REFERENCES users(id) ON DELETE SET NULL, -- Self-referencing
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Now that 'users' exists, link the 'groups' table to its mentor
-ALTER TABLE groups
-  ADD CONSTRAINT fk_groups_mentor
-  FOREIGN KEY (mentor_id) REFERENCES users(id) ON DELETE SET NULL;
+-- ------------------------------------------------------------
+-- 4. MEMBERS (The roster; account link is optional)
+-- ------------------------------------------------------------
+CREATE TABLE members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID CONSTRAINT uq_members_user UNIQUE
+        REFERENCES users(id) ON DELETE SET NULL,
+    full_name TEXT NOT NULL,             -- "nama lengkap"
+    email TEXT CONSTRAINT uq_members_email UNIQUE, -- contact address, may differ from the login email
+    phone TEXT,                          -- "nomor_hp"
+    gender TEXT CHECK (gender IN ('L', 'P')), -- "jenis_kelamin"
+    birth_place TEXT,                    -- "tempat lahir"
+    birth_date DATE,                     -- "tanggal lahir"
+    address TEXT,                        -- "alamat lengkap"
 
-CREATE INDEX idx_users_mentor ON users(mentor_id);
-CREATE INDEX idx_users_group ON users(group_id);
+    -- Academic & Occupation Lookups
+    sma_id INT REFERENCES schools(id) ON DELETE SET NULL,
+    domisili_id INT REFERENCES cities(id) ON DELETE SET NULL,
+    occupation_id INT REFERENCES occupations(id) ON DELETE SET NULL,
+    university_id INT REFERENCES universities(id) ON DELETE SET NULL,
+
+    -- Academic details
+    faculty TEXT,                        -- "fakultas"
+    major TEXT,                          -- "jurusan"
+    entry_year SMALLINT,                 -- "tahun masuk"
+    graduation_year SMALLINT,            -- "tahun lulus"
+
+    -- Statuses
+    mentorship_tier TEXT,                -- "level"
+    activity_status TEXT NOT NULL DEFAULT 'active'
+        CHECK (activity_status IN ('active', 'inactive', 'mutated', 'lost contact')), -- "keaktifan"
+
+    group_id UUID,                       -- FK added after `groups` exists
+    mentor_id UUID,                      -- FK added after `groups` exists
+
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_members_group ON members(group_id);
+CREATE INDEX idx_members_mentor ON members(mentor_id);
+CREATE INDEX idx_members_status ON members(activity_status);
+CREATE INDEX idx_members_full_name ON members(full_name);
 
 -- ------------------------------------------------------------
 -- 4b. ROLES (A user can hold multiple roles)
@@ -92,56 +123,45 @@ CREATE TABLE user_roles (
 CREATE INDEX idx_user_roles_role ON user_roles(role_id);
 
 -- ------------------------------------------------------------
--- 5. MEMBER PROFILES (Personal, Academic, & Status Data)
+-- 5. GROUPS (Mentorship groups)
 -- ------------------------------------------------------------
-CREATE TABLE member_profiles (
-    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    full_name TEXT NOT NULL,             -- "nama lengkap"
-    gender TEXT CHECK (gender IN ('L', 'P')), -- "jenis_kelamin" (Laki-laki/Perempuan)
-    birth_place TEXT,                    -- "tempat lahir"
-    birth_date DATE,                     -- "tanggal lahir"
-    address TEXT,                        -- "alamat lengkap"
-    phone TEXT,                          -- "nomor_hp"
-
-    -- Academic & Occupation Lookups
-    sma_id INT REFERENCES schools(id) ON DELETE SET NULL,
-    domisili_id INT REFERENCES cities(id) ON DELETE SET NULL,
-    occupation_id INT REFERENCES occupations(id) ON DELETE SET NULL,
-    university_id INT REFERENCES universities(id) ON DELETE SET NULL,
-
-    -- Academic details
-    faculty TEXT,                        -- "fakultas"
-    major TEXT,                          -- "jurusan"
-    entry_year SMALLINT,                 -- "tahun masuk"
-    graduation_year SMALLINT,            -- "tahun lulus"
-
-    -- Statuses
-    mentorship_tier TEXT,                -- "level"
-    activity_status TEXT NOT NULL DEFAULT 'active'
-        CHECK (activity_status IN ('active', 'inactive', 'mutated', 'lost contact')), -- "keaktifan"
-
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE groups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    mentor_id UUID, -- FK added after `members` exists
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE members
+  ADD CONSTRAINT fk_members_group
+  FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE SET NULL;
+
+ALTER TABLE members
+  ADD CONSTRAINT fk_members_mentor
+  FOREIGN KEY (mentor_id) REFERENCES members(id) ON DELETE SET NULL;
+
+ALTER TABLE groups
+  ADD CONSTRAINT fk_groups_mentor
+  FOREIGN KEY (mentor_id) REFERENCES members(id) ON DELETE SET NULL;
+
 -- ------------------------------------------------------------
--- 6. USER ORGANIZATIONS (Pivot Table)
+-- 6. MEMBER ORGANIZATIONS (Pivot Table)
 -- ------------------------------------------------------------
-CREATE TABLE user_organizations (
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+CREATE TABLE member_organizations (
+    member_id UUID REFERENCES members(id) ON DELETE CASCADE,
     organization_id INT REFERENCES organizations(id) ON DELETE CASCADE,
     joined_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (user_id, organization_id)
+    PRIMARY KEY (member_id, organization_id)
 );
 
 -- ------------------------------------------------------------
--- 7. MENTORSHIP SESSIONS & ARTICLES (From previous design)
+-- 7. MENTORSHIP SESSIONS & ARTICLES
 -- ------------------------------------------------------------
 CREATE TABLE sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     group_id UUID REFERENCES groups(id) ON DELETE CASCADE, -- Optional: link to group
-    mentor_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    mentee_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    mentor_id UUID REFERENCES members(id) ON DELETE CASCADE,
+    mentee_id UUID REFERENCES members(id) ON DELETE CASCADE,
     scheduled_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
     title TEXT,

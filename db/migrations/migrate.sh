@@ -6,8 +6,8 @@
 #
 #   ./db/migrations/migrate.sh backup             dump the DB into db/backups/
 #   ./db/migrations/migrate.sh apply 001_add_user_roles.sql
-#   ./db/migrations/migrate.sh verify             list every user and their roles
-#   ./db/migrations/migrate.sh all                backup + 001 + verify
+#   ./db/migrations/migrate.sh verify             users, roles, members report
+#   ./db/migrations/migrate.sh all                backup + 001 + 003 + verify
 #
 # All SQL is executed inside the `db` container using its own POSTGRES_USER /
 # POSTGRES_DB, so no credentials or quoting are needed on the host.
@@ -65,27 +65,57 @@ cmd_apply() {
 
 cmd_verify() {
   require_db
-  printf '\n== users and roles ==\n'
-  sql "SELECT u.email,
-              u.is_active AS active,
-              COALESCE(string_agg(r.code, ',' ORDER BY r.code), '(none)') AS roles
-       FROM users u
-       LEFT JOIN user_roles ur ON ur.user_id = u.id
-       LEFT JOIN roles r ON r.id = ur.role_id
-       GROUP BY u.email, u.is_active
-       ORDER BY u.email;"
 
-  printf '\n== users without any role (should be 0) ==\n'
-  sql "SELECT count(*) AS users_without_roles
-       FROM users u
-       WHERE NOT EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id);"
+  "${COMPOSE[@]}" exec -T db \
+    sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f -' <<'SQL'
+\pset pager off
 
-  printf '\n== role counts ==\n'
-  sql "SELECT r.code, count(ur.user_id) AS users
-       FROM roles r
-       LEFT JOIN user_roles ur ON ur.role_id = r.id
-       GROUP BY r.code
-       ORDER BY r.code;"
+\echo ''
+\echo '== roles =='
+SELECT r.code, count(ur.user_id) AS users
+FROM roles r
+LEFT JOIN user_roles ur ON ur.role_id = r.id
+GROUP BY r.code
+ORDER BY r.code;
+
+\echo ''
+\echo '== accounts without any role (should be 0) =='
+SELECT count(*) AS accounts_without_role
+FROM users u
+WHERE NOT EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id);
+
+SELECT CASE WHEN to_regclass('public.members') IS NULL THEN 'false' ELSE 'true' END
+  AS has_members \gset
+
+\if :has_members
+\echo ''
+\echo '== members vs accounts =='
+SELECT
+  (SELECT count(*) FROM members)                                       AS members,
+  (SELECT count(*) FROM members WHERE user_id IS NOT NULL)             AS with_account,
+  (SELECT count(*) FROM members WHERE user_id IS NULL)                 AS without_account,
+  (SELECT count(*) FROM users)                                         AS accounts,
+  (SELECT count(*) FROM users u
+    WHERE NOT EXISTS (SELECT 1 FROM members m WHERE m.user_id = u.id)) AS accounts_without_member;
+
+\echo ''
+\echo '== members by status =='
+SELECT activity_status, count(*) AS members
+FROM members
+GROUP BY activity_status
+ORDER BY activity_status;
+
+\echo ''
+\echo '== accounts linked to a member =='
+SELECT u.email, m.full_name, m.activity_status
+FROM users u
+JOIN members m ON m.user_id = u.id
+ORDER BY u.email;
+\else
+\echo ''
+\echo '!! members table not created yet - run: ./db/migrations/migrate.sh apply 003_members_table.sql'
+\endif
+SQL
 }
 
 case "${1:-}" in
@@ -95,6 +125,7 @@ case "${1:-}" in
   all)
     cmd_backup
     cmd_apply 001_add_user_roles.sql
+    cmd_apply 003_members_table.sql
     cmd_verify
     ;;
   *)
@@ -103,8 +134,8 @@ Usage: ./db/migrations/migrate.sh <command>
 
   backup             dump the database into db/backups/ (custom format)
   apply <file.sql>   apply a file from db/migrations/
-  verify             list every user and their roles
-  all                backup + 001_add_user_roles.sql + verify
+  verify             users, roles and members report
+  all                backup + 001_add_user_roles.sql + 003_members_table.sql + verify
 EOF
     exit 1
     ;;
