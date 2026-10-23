@@ -24,14 +24,27 @@ export default function AdminDashboardPage() {
           Nusantara.
         </p>
 
-        <div className="mt-8 grid gap-5 md:grid-cols-3">
-          <Link href="/admin/users" className={cardClass}>
+        <div className="mt-8 grid gap-5 md:grid-cols-2">
+          <Link href="/admin/members" className={cardClass}>
             <h2 className="font-serif text-xl font-semibold text-emerald-950">
-              Kelola anggota
+              Data anggota
             </h2>
             <p className="mt-3 flex-1 text-sm leading-relaxed text-stone-600">
-              Buat akun, atur peran, aktifkan atau nonaktifkan akses, dan reset
-              kata sandi.
+              Kelola daftar anggota yayasan — termasuk yang belum memiliki akun
+              login — lalu buatkan akun saat mereka mulai aktif.
+            </p>
+            <span className="mt-5 text-sm font-semibold text-emerald-800">
+              Buka <span aria-hidden="true">→</span>
+            </span>
+          </Link>
+
+          <Link href="/admin/users" className={cardClass}>
+            <h2 className="font-serif text-xl font-semibold text-emerald-950">
+              Kelola akun
+            </h2>
+            <p className="mt-3 flex-1 text-sm leading-relaxed text-stone-600">
+              Atur peran, aktifkan atau nonaktifkan akses, dan reset kata sandi
+              akun anggota.
             </p>
             <span className="mt-5 text-sm font-semibold text-emerald-800">
               Buka <span aria-hidden="true">→</span>

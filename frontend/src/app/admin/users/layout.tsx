@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Kelola Anggota",
+  title: "Kelola Akun",
 };
 
 export default function AdminUsersLayout({

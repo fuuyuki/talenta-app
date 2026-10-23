@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetchWithAuth } from '@/lib/api';
 import { clearSession } from '@/lib/auth';
@@ -14,7 +15,7 @@ type AdminUser = {
   roles: AdminRole[];
   is_active: boolean;
   created_at: string;
-  member_profiles: { full_name: string } | null;
+  member: { id: string; full_name: string } | null;
 };
 
 const ALL_ROLES: AdminRole[] = ['mentee', 'mentor', 'admin'];
@@ -276,11 +277,19 @@ export default function AdminUsersPage() {
             Administrasi
           </p>
           <h1 className="mt-3 font-serif text-3xl font-semibold text-emerald-950 sm:text-4xl">
-            Kelola anggota
+            Kelola akun
           </h1>
           <p className="mt-3 text-sm leading-relaxed text-stone-600">
-            Buat akun anggota, atur peran, dan kelola status akses. Akun baru
+            Buat akun login, atur peran, dan kelola status akses. Akun baru
             langsung dapat masuk dengan kata sandi awal yang Anda tetapkan.
+            Untuk menyimpan anggota yang belum punya akun, gunakan{' '}
+            <Link
+              href="/admin/members"
+              className="font-semibold text-emerald-800 underline-offset-4 hover:underline"
+            >
+              data anggota
+            </Link>
+            .
           </p>
         </div>
 
@@ -463,9 +472,9 @@ export default function AdminUsersPage() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
                         <p className="truncate font-medium text-emerald-950">
-                          {user.member_profiles?.full_name ?? user.email}
+                          {user.member?.full_name ?? user.email}
                         </p>
-                        {user.member_profiles?.full_name && (
+                        {user.member?.full_name && (
                           <p className="truncate text-sm text-stone-500">
                             {user.email}
                           </p>
