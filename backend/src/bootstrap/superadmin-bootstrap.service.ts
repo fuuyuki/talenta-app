@@ -9,9 +9,7 @@ export class SuperadminBootstrapService implements OnApplicationBootstrap {
   constructor(private readonly prisma: PrismaService) {}
 
   async onApplicationBootstrap() {
-    const adminCount = await this.prisma.users.count({
-      where: { role: 'admin' },
-    });
+    const adminCount = await this.countAdmins();
 
     if (adminCount > 0) {
       this.logger.log(
@@ -59,20 +57,56 @@ export class SuperadminBootstrapService implements OnApplicationBootstrap {
         data: {
           email,
           password_hash: hash,
-          role: 'admin',
           is_active: true,
+          user_roles: {
+            create: [{ roles: { connect: { code: 'admin' } } }],
+          },
         },
         select: { id: true, email: true },
       });
 
       this.logger.log(`Superadmin created: ${user.email}`);
     } catch (error) {
-      if ((error as { code?: string }).code === 'P2002') {
+      const code = (error as { code?: string }).code;
+
+      if (code === 'P2002') {
         this.logger.warn(
           `A user with email ${email} already exists; superadmin was not created.`,
         );
         return;
       }
+
+      if (code === 'P2025') {
+        this.logger.error(
+          'The admin role is missing. Run the 001_add_user_roles migration first.',
+        );
+        return;
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Counts admin accounts, turning a missing `user_roles` / `roles` table into
+   * an actionable message instead of a cryptic Prisma error at startup.
+   */
+  private async countAdmins(): Promise<number> {
+    try {
+      return await this.prisma.user_roles.count({
+        where: { roles: { is: { code: 'admin' } } },
+      });
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+
+      if (code === 'P2021') {
+        this.logger.error(
+          'Database is not migrated: the roles/user_roles tables are missing. ' +
+            'Run db/migrations/001_add_user_roles.sql before starting this version.',
+        );
+        throw new Error('Database migration 001_add_user_roles.sql has not been applied');
+      }
+
       throw error;
     }
   }

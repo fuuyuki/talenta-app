@@ -19,6 +19,11 @@ export class AuthService {
 
     const user = await this.prisma.users.findUnique({
       where: { email: normalizedEmail },
+      include: {
+        user_roles: {
+          select: { roles: { select: { code: true } } },
+        },
+      },
     });
     if (!user) throw new UnauthorizedException('Invalid credentials');
     if (!user.is_active) throw new UnauthorizedException('Account is inactive');
@@ -26,11 +31,16 @@ export class AuthService {
     const isMatch = await bcrypt.compare(pass, user.password_hash);
     if (!isMatch) throw new UnauthorizedException('Invalid credentials');
 
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const roles = user.user_roles.map((item) => item.roles.code);
+    if (roles.length === 0) {
+      throw new UnauthorizedException('Account has no role assigned');
+    }
+
+    const payload = { sub: user.id, email: user.email };
 
     return {
       access_token: this.jwtService.sign(payload),
-      user: { id: user.id, email: user.email, role: user.role },
+      user: { id: user.id, email: user.email, roles },
     };
   }
 }

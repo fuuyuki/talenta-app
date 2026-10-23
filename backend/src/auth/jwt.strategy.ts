@@ -24,13 +24,25 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // changes take effect immediately instead of waiting for the token to expire.
     const user = await this.prisma.users.findUnique({
       where: { id: payload.sub },
-      select: { id: true, email: true, role: true, is_active: true },
+      select: {
+        id: true,
+        email: true,
+        is_active: true,
+        user_roles: {
+          select: { roles: { select: { code: true } } },
+        },
+      },
     });
 
     if (!user || !user.is_active) {
       throw new UnauthorizedException();
     }
 
-    return { userId: user.id, email: user.email, role: user.role };
+    const roles = user.user_roles.map((item) => item.roles.code);
+    if (roles.length === 0) {
+      throw new UnauthorizedException();
+    }
+
+    return { userId: user.id, email: user.email, roles };
   }
 }

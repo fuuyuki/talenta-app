@@ -13,20 +13,38 @@ export type AdminRole = (typeof ROLES)[number];
 export type CreateUserInput = {
   email?: string;
   password?: string;
-  role?: string;
+  roles?: string[];
   full_name?: string;
 };
 
 export type UpdateUserInput = {
-  role?: string;
+  roles?: string[];
   is_active?: boolean;
 };
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+type UserWithRoles = { user_roles: Array<{ roles: { code: string } }> };
+
 function isRole(value: string): value is AdminRole {
   return (ROLES as readonly string[]).includes(value);
+}
+
+function normalizeRoles(input: string[] | undefined): AdminRole[] {
+  if (!Array.isArray(input) || input.length === 0) {
+    throw new BadRequestException('At least one role is required');
+  }
+
+  const unique = Array.from(new Set(input.map((value) => value.trim())));
+
+  for (const value of unique) {
+    if (!isRole(value)) {
+      throw new BadRequestException('Invalid role');
+    }
+  }
+
+  return unique as AdminRole[];
 }
 
 function assertUuid(id: string) {
@@ -52,13 +70,20 @@ export class AdminService {
   private readonly userSelect = {
     id: true,
     email: true,
-    role: true,
     is_active: true,
     created_at: true,
     member_profiles: {
       select: { full_name: true },
     },
+    user_roles: {
+      select: { roles: { select: { code: true } } },
+    },
   } as const;
+
+  private withRoles<T extends UserWithRoles>(user: T) {
+    const { user_roles, ...rest } = user;
+    return { ...rest, roles: user_roles.map((item) => item.roles.code) };
+  }
 
   async listUsers(input: { search?: string; role?: string }) {
     const search = input.search?.trim();
@@ -69,7 +94,9 @@ export class AdminService {
     }
 
     const where = {
-      ...(role ? { role } : {}),
+      ...(role
+        ? { user_roles: { some: { roles: { is: { code: role } } } } }
+        : {}),
       ...(search
         ? {
             OR: [
@@ -94,12 +121,14 @@ export class AdminService {
         : {}),
     };
 
-    return this.prisma.users.findMany({
+    const users = await this.prisma.users.findMany({
       where,
       orderBy: { created_at: 'desc' },
       take: 100,
       select: this.userSelect,
     });
+
+    return users.map((user) => this.withRoles(user));
   }
 
   async createUser(input: CreateUserInput) {
@@ -113,12 +142,7 @@ export class AdminService {
     }
 
     const password = assertPassword(input.password);
-    const role = input.role ?? 'mentee';
-
-    if (!isRole(role)) {
-      throw new BadRequestException('Invalid role');
-    }
-
+    const roles = normalizeRoles(input.roles ?? ['mentee']);
     const fullName = input.full_name?.trim();
 
     const existing = await this.prisma.users.findUnique({
@@ -129,64 +153,73 @@ export class AdminService {
       throw new ConflictException('Email already exists');
     }
 
+    const roleRecords = await this.prisma.roles.findMany({
+      where: { code: { in: roles } },
+      select: { id: true },
+    });
+    if (roleRecords.length !== roles.length) {
+      throw new BadRequestException('Invalid role');
+    }
+
     const passwordHash = await bcrypt.hash(password, 12);
 
-    return this.prisma.users.create({
+    const user = await this.prisma.users.create({
       data: {
         email,
         password_hash: passwordHash,
-        role,
         ...(fullName
           ? { member_profiles: { create: { full_name: fullName } } }
           : {}),
+        user_roles: {
+          create: roleRecords.map((record) => ({ role_id: record.id })),
+        },
       },
       select: this.userSelect,
     });
+
+    return this.withRoles(user);
   }
 
   async updateUser(id: string, input: UpdateUserInput) {
     assertUuid(id);
 
+    if (input.roles === undefined && input.is_active === undefined) {
+      throw new BadRequestException('No changes provided');
+    }
+
+    if (input.is_active !== undefined && typeof input.is_active !== 'boolean') {
+      throw new BadRequestException('is_active must be a boolean');
+    }
+
     const user = await this.prisma.users.findUnique({
       where: { id },
-      select: { id: true, role: true, is_active: true },
+      select: {
+        id: true,
+        is_active: true,
+        user_roles: {
+          select: { roles: { select: { code: true } } },
+        },
+      },
     });
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    const data: { role?: AdminRole; is_active?: boolean } = {};
+    const currentRoles = user.user_roles.map((item) => item.roles.code);
+    const nextRoles =
+      input.roles !== undefined ? normalizeRoles(input.roles) : undefined;
 
-    if (input.role !== undefined) {
-      if (!isRole(input.role)) {
-        throw new BadRequestException('Invalid role');
-      }
-      data.role = input.role;
-    }
-
-    if (input.is_active !== undefined) {
-      if (typeof input.is_active !== 'boolean') {
-        throw new BadRequestException('is_active must be a boolean');
-      }
-      data.is_active = input.is_active;
-    }
-
-    if (Object.keys(data).length === 0) {
-      throw new BadRequestException('No changes provided');
-    }
-
-    const removesActiveAdmin =
-      user.role === 'admin' &&
+    const losesAdmin =
       user.is_active &&
-      ((data.role !== undefined && data.role !== 'admin') ||
-        data.is_active === false);
+      currentRoles.includes('admin') &&
+      ((nextRoles !== undefined && !nextRoles.includes('admin')) ||
+        input.is_active === false);
 
-    if (removesActiveAdmin) {
-      const otherAdmins = await this.prisma.users.count({
+    if (losesAdmin) {
+      const otherAdmins = await this.prisma.user_roles.count({
         where: {
-          role: 'admin',
-          is_active: true,
-          NOT: { id },
+          roles: { is: { code: 'admin' } },
+          users: { is: { is_active: true, NOT: { id } } },
         },
       });
 
@@ -195,11 +228,38 @@ export class AdminService {
       }
     }
 
-    return this.prisma.users.update({
+    let roleRecords: Array<{ id: number }> = [];
+
+    if (nextRoles !== undefined) {
+      roleRecords = await this.prisma.roles.findMany({
+        where: { code: { in: nextRoles } },
+        select: { id: true },
+      });
+
+      if (roleRecords.length !== nextRoles.length) {
+        throw new BadRequestException('Invalid role');
+      }
+    }
+
+    const data = {
+      ...(input.is_active !== undefined ? { is_active: input.is_active } : {}),
+      ...(nextRoles !== undefined
+        ? {
+            user_roles: {
+              deleteMany: {},
+              create: roleRecords.map((record) => ({ role_id: record.id })),
+            },
+          }
+        : {}),
+    };
+
+    const updated = await this.prisma.users.update({
       where: { id },
       data,
       select: this.userSelect,
     });
+
+    return this.withRoles(updated);
   }
 
   async resetPassword(id: string, password: string | undefined) {

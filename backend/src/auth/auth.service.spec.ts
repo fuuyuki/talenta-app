@@ -38,14 +38,16 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('returns a token for valid credentials', async () => {
-      const password_hash = await bcrypt.hash('secret', 10);
+    it('returns a token and all roles for valid credentials', async () => {
       prisma.users.findUnique.mockResolvedValue({
         id: 'user-1',
         email: 'user@example.com',
-        role: 'mentee',
-        password_hash,
+        password_hash: await bcrypt.hash('secret', 10),
         is_active: true,
+        user_roles: [
+          { roles: { code: 'mentor' } },
+          { roles: { code: 'mentee' } },
+        ],
       });
 
       const result = await service.login('user@example.com', 'secret');
@@ -53,11 +55,14 @@ describe('AuthService', () => {
       expect(jwtService.sign).toHaveBeenCalledWith({
         sub: 'user-1',
         email: 'user@example.com',
-        role: 'mentee',
       });
       expect(result).toEqual({
         access_token: 'signed-token',
-        user: { id: 'user-1', email: 'user@example.com', role: 'mentee' },
+        user: {
+          id: 'user-1',
+          email: 'user@example.com',
+          roles: ['mentor', 'mentee'],
+        },
       });
     });
 
@@ -68,9 +73,9 @@ describe('AuthService', () => {
         service.login(' User@Example.com ', 'secret'),
       ).rejects.toBeInstanceOf(UnauthorizedException);
 
-      expect(prisma.users.findUnique).toHaveBeenCalledWith({
-        where: { email: 'user@example.com' },
-      });
+      expect(prisma.users.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { email: 'user@example.com' } }),
+      );
     });
 
     it('rejects an unknown email', async () => {
@@ -85,9 +90,9 @@ describe('AuthService', () => {
       prisma.users.findUnique.mockResolvedValue({
         id: 'user-1',
         email: 'user@example.com',
-        role: 'mentee',
         password_hash: await bcrypt.hash('secret', 10),
         is_active: true,
+        user_roles: [{ roles: { code: 'mentee' } }],
       });
 
       await expect(
@@ -100,9 +105,24 @@ describe('AuthService', () => {
       prisma.users.findUnique.mockResolvedValue({
         id: 'user-1',
         email: 'user@example.com',
-        role: 'mentee',
         password_hash: await bcrypt.hash('secret', 10),
         is_active: false,
+        user_roles: [{ roles: { code: 'mentee' } }],
+      });
+
+      await expect(
+        service.login('user@example.com', 'secret'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(jwtService.sign).not.toHaveBeenCalled();
+    });
+
+    it('rejects an account without any role', async () => {
+      prisma.users.findUnique.mockResolvedValue({
+        id: 'user-1',
+        email: 'user@example.com',
+        password_hash: await bcrypt.hash('secret', 10),
+        is_active: true,
+        user_roles: [],
       });
 
       await expect(
