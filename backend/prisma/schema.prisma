@@ -144,3 +144,13 @@ model users {
   @@index([mentor_id], map: "idx_users_mentor")
   @@index([role], map: "idx_users_role")
 }
+
+model registration_requests {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  full_name  String
+  email      String   @unique
+  phone      String?
+  reason     String?
+  status     String   @default("pending")
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+}

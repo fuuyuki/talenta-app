@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getSession, saveSession, type LoginResponse } from "@/lib/auth";
@@ -211,6 +212,14 @@ export default function LoginPage() {
 
           <p className="mt-6 text-center text-xs text-slate-400 dark:text-slate-500">
             Contact your administrator if you cannot access your account.
+          </p>
+          <p className="mt-2 text-center text-xs">
+            <Link
+              href="/"
+              className="font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+            >
+              ← Kembali ke beranda
+            </Link>
           </p>
         </div>
       </main>
