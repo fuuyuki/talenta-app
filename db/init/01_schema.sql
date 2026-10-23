@@ -47,13 +47,12 @@ CREATE TABLE groups (
 );
 
 -- ------------------------------------------------------------
--- 4. USERS (Base authentication and roles)
+-- 4. USERS (Base authentication)
 -- ------------------------------------------------------------
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('admin', 'mentor', 'mentee')),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     group_id UUID REFERENCES groups(id) ON DELETE SET NULL,
     mentor_id UUID REFERENCES users(id) ON DELETE SET NULL, -- Self-referencing
@@ -66,9 +65,31 @@ ALTER TABLE groups
   ADD CONSTRAINT fk_groups_mentor
   FOREIGN KEY (mentor_id) REFERENCES users(id) ON DELETE SET NULL;
 
-CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_mentor ON users(mentor_id);
 CREATE INDEX idx_users_group ON users(group_id);
+
+-- ------------------------------------------------------------
+-- 4b. ROLES (A user can hold multiple roles)
+-- ------------------------------------------------------------
+CREATE TABLE roles (
+    id SERIAL PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL
+);
+
+INSERT INTO roles (code, name) VALUES
+    ('admin', 'Admin'),
+    ('mentor', 'Mentor'),
+    ('mentee', 'Mentee');
+
+CREATE TABLE user_roles (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_id INT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, role_id)
+);
+
+CREATE INDEX idx_user_roles_role ON user_roles(role_id);
 
 -- ------------------------------------------------------------
 -- 5. MEMBER PROFILES (Personal, Academic, & Status Data)
