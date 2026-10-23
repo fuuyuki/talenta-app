@@ -3,7 +3,7 @@ export type UserRole = 'admin' | 'mentor' | 'mentee';
 export type AuthUser = {
   id: string;
   email: string;
-  role: UserRole;
+  roles: UserRole[];
 };
 
 export type LoginResponse = {
@@ -13,6 +13,33 @@ export type LoginResponse = {
 
 const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
+
+/**
+ * Accepts both the new `roles: []` shape and the legacy `role: string` shape,
+ * so existing browser sessions survive the migration.
+ */
+export function normalizeStoredUser(value: unknown): AuthUser | null {
+  if (!value || typeof value !== 'object') return null;
+
+  const record = value as Record<string, unknown>;
+  const id = typeof record.id === 'string' ? record.id : '';
+  const email = typeof record.email === 'string' ? record.email : '';
+
+  const rawRoles = Array.isArray(record.roles)
+    ? record.roles
+    : typeof record.role === 'string'
+      ? [record.role]
+      : [];
+
+  const roles = rawRoles.filter(
+    (role): role is UserRole =>
+      role === 'admin' || role === 'mentor' || role === 'mentee',
+  );
+
+  if (!id || !email || roles.length === 0) return null;
+
+  return { id, email, roles };
+}
 
 export function saveSession(response: LoginResponse) {
   localStorage.setItem(TOKEN_KEY, response.access_token);
@@ -25,7 +52,12 @@ export function getSession(): { token: string; user: AuthUser } | null {
   if (!token || !rawUser) return null;
 
   try {
-    return { token, user: JSON.parse(rawUser) as AuthUser };
+    const user = normalizeStoredUser(JSON.parse(rawUser));
+    if (!user) {
+      clearSession();
+      return null;
+    }
+    return { token, user };
   } catch {
     clearSession();
     return null;

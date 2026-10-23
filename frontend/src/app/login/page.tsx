@@ -24,6 +24,9 @@ function friendlyError(message: string) {
   if (message === "Account is inactive") {
     return "Akun Anda tidak aktif. Hubungi administrator.";
   }
+  if (message === "Account has no role assigned") {
+    return "Akun Anda belum memiliki peran. Hubungi administrator.";
+  }
   if (message.includes("429")) {
     return "Terlalu banyak percobaan masuk. Silakan coba lagi beberapa saat.";
   }

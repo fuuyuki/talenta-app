@@ -1,86 +1,85 @@
 'use client';
 
-import { useEffect, useSyncExternalStore } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { clearSession, getSession, type AuthUser } from '@/lib/auth';
+import { DashboardShell } from '@/components/dashboard-shell';
+import type { UserRole } from '@/lib/auth';
+import { useAuthUser } from '@/lib/use-auth-user';
 
-function subscribeToStorage(onStoreChange: () => void) {
-  window.addEventListener('storage', onStoreChange);
-  return () => window.removeEventListener('storage', onStoreChange);
-}
-
-function getStoredUser() {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage.getItem('user');
-}
-
-function getServerUser() {
-  return null;
-}
-
-function parseUser(raw: string | null): AuthUser | null {
-  if (!raw) return null;
-
-  try {
-    return JSON.parse(raw) as AuthUser;
-  } catch {
-    return null;
-  }
-}
+const roleCards: Record<
+  UserRole,
+  { title: string; description: string; href: string; cta: string }
+> = {
+  admin: {
+    title: 'Dashboard Admin',
+    description:
+      'Kelola akun anggota, atur peran, dan jaga akses platform.',
+    href: '/admin',
+    cta: 'Buka admin',
+  },
+  mentor: {
+    title: 'Dashboard Mentor',
+    description:
+      'Pendampingan, sesi, dan catatan perkembangan mentee dalam satu tempat.',
+    href: '/mentor',
+    cta: 'Buka mentor',
+  },
+  mentee: {
+    title: 'Dashboard Mentee',
+    description:
+      'Mentor, sesi, dan sumber belajar untuk mendukung perkembangan Anda.',
+    href: '/mentee',
+    cta: 'Buka mentee',
+  },
+};
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const storedUser = useSyncExternalStore(
-    subscribeToStorage,
-    getStoredUser,
-    getServerUser,
-  );
-  const user = parseUser(storedUser);
-
-  useEffect(() => {
-    if (!getSession()) {
-      router.replace('/login');
-    }
-  }, [router]);
-
-  if (!user) {
-    return <p className="p-8">Loading...</p>;
-  }
+  const user = useAuthUser();
+  const roles = user?.roles ?? [];
 
   return (
-    <div className="p-8">
-      <h1 className="text-3xl font-bold mb-2">
-        Welcome to your Dashboard, {user.email}
-      </h1>
-      <p className="text-gray-600">Role: {user.role}</p>
+    <DashboardShell>
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
+          Ruang Kerja
+        </p>
+        <h1 className="mt-3 font-serif text-3xl font-semibold text-emerald-950 sm:text-4xl">
+          Selamat datang{user ? `, ${user.email}` : ''}
+        </h1>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-stone-600">
+          Pilih ruang yang sesuai dengan peran Anda. Anda dapat memiliki lebih
+          dari satu peran.
+        </p>
 
-      <div className="mt-8 flex flex-wrap gap-3">
-        {user.role === 'admin' && (
-          <Link
-            href="/admin/users"
-            className="rounded bg-emerald-900 px-4 py-2 text-white transition hover:bg-emerald-950"
-          >
-            Kelola Anggota
-          </Link>
+        {roles.length === 0 ? (
+          <div className="mt-8 rounded-2xl border border-dashed border-emerald-900/20 bg-white/60 p-8 text-sm text-stone-600">
+            Akun Anda belum memiliki peran. Hubungi administrator.
+          </div>
+        ) : (
+          <div className="mt-8 grid gap-5 md:grid-cols-3">
+            {roles.map((role) => {
+              const card = roleCards[role];
+
+              return (
+                <Link
+                  key={role}
+                  href={card.href}
+                  className="group flex flex-col rounded-2xl border border-emerald-900/10 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  <h2 className="font-serif text-xl font-semibold text-emerald-950">
+                    {card.title}
+                  </h2>
+                  <p className="mt-3 flex-1 text-sm leading-relaxed text-stone-600">
+                    {card.description}
+                  </p>
+                  <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-800 transition group-hover:text-emerald-950">
+                    {card.cta} <span aria-hidden="true">→</span>
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
         )}
-        <Link
-          href="/"
-          className="rounded bg-slate-900 px-4 py-2 text-white transition hover:bg-slate-800"
-        >
-          Kembali ke beranda
-        </Link>
-        <button
-          type="button"
-          onClick={() => {
-            clearSession();
-            router.replace('/login');
-          }}
-          className="rounded bg-red-500 px-4 py-2 text-white transition hover:bg-red-600"
-        >
-          Logout
-        </button>
       </div>
-    </div>
+    </DashboardShell>
   );
 }

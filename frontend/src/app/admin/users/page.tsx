@@ -1,22 +1,23 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetchWithAuth } from '@/lib/api';
-import { clearSession, getSession } from '@/lib/auth';
-import { Brand } from '@/components/logo';
+import { clearSession } from '@/lib/auth';
+import { DashboardShell } from '@/components/dashboard-shell';
 
 type AdminRole = 'admin' | 'mentor' | 'mentee';
 
 type AdminUser = {
   id: string;
   email: string;
-  role: AdminRole;
+  roles: AdminRole[];
   is_active: boolean;
   created_at: string;
   member_profiles: { full_name: string } | null;
 };
+
+const ALL_ROLES: AdminRole[] = ['mentee', 'mentor', 'admin'];
 
 const roleLabels: Record<AdminRole, string> = {
   admin: 'Admin',
@@ -27,8 +28,7 @@ const roleLabels: Record<AdminRole, string> = {
 const inputClass =
   'w-full rounded-xl border border-emerald-900/15 bg-white px-3.5 py-2.5 text-sm text-emerald-950 shadow-sm outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 disabled:cursor-not-allowed disabled:opacity-60';
 
-const labelClass =
-  'mb-1.5 block text-sm font-medium text-emerald-950';
+const labelClass = 'mb-1.5 block text-sm font-medium text-emerald-950';
 
 const primaryButton =
   'inline-flex w-full items-center justify-center rounded-xl bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70';
@@ -45,6 +45,9 @@ function friendlyAdminError(message: string) {
   }
   if (message.includes('Password must be at least 12')) {
     return 'Kata sandi minimal 12 karakter.';
+  }
+  if (message.includes('At least one role')) {
+    return 'Pilih minimal satu peran.';
   }
   if (message.includes('Invalid email')) {
     return 'Format email tidak valid.';
@@ -75,7 +78,7 @@ export default function AdminUsersPage() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<AdminRole>('mentee');
+  const [roles, setRoles] = useState<AdminRole[]>(['mentee']);
   const [formError, setFormError] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
@@ -83,16 +86,9 @@ export default function AdminUsersPage() {
   const [newPassword, setNewPassword] = useState('');
   const [isResetting, setIsResetting] = useState(false);
 
-  useEffect(() => {
-    const session = getSession();
-    if (!session) {
-      router.replace('/login');
-      return;
-    }
-    if (session.user.role !== 'admin') {
-      router.replace('/dashboard');
-    }
-  }, [router]);
+  const [rolesUserId, setRolesUserId] = useState<string | null>(null);
+  const [editRoles, setEditRoles] = useState<AdminRole[]>([]);
+  const [isUpdatingRoles, setIsUpdatingRoles] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,6 +127,22 @@ export default function AdminUsersPage() {
     setReloadToken((token) => token + 1);
   };
 
+  const toggleRole = (value: AdminRole) => {
+    setRoles((current) =>
+      current.includes(value)
+        ? current.filter((role) => role !== value)
+        : [...current, value],
+    );
+  };
+
+  const toggleEditRole = (value: AdminRole) => {
+    setEditRoles((current) =>
+      current.includes(value)
+        ? current.filter((role) => role !== value)
+        : [...current, value],
+    );
+  };
+
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError('');
@@ -147,6 +159,10 @@ export default function AdminUsersPage() {
       setFormError('Kata sandi minimal 12 karakter.');
       return;
     }
+    if (roles.length === 0) {
+      setFormError('Pilih minimal satu peran.');
+      return;
+    }
 
     setIsCreating(true);
 
@@ -156,7 +172,7 @@ export default function AdminUsersPage() {
         body: JSON.stringify({
           email: trimmedEmail,
           password,
-          role,
+          roles,
           full_name: trimmedName || undefined,
         }),
       });
@@ -164,7 +180,7 @@ export default function AdminUsersPage() {
       setFullName('');
       setEmail('');
       setPassword('');
-      setRole('mentee');
+      setRoles(['mentee']);
       setNotice('Anggota berhasil dibuat.');
       setReloadToken((token) => token + 1);
     } catch (err) {
@@ -192,6 +208,35 @@ export default function AdminUsersPage() {
     } catch (err) {
       const message = err instanceof Error ? err.message : '';
       setLoadError(friendlyAdminError(message));
+    }
+  };
+
+  const handleUpdateRoles = async (user: AdminUser) => {
+    setLoadError('');
+    setNotice('');
+
+    if (editRoles.length === 0) {
+      setLoadError('Pilih minimal satu peran.');
+      return;
+    }
+
+    setIsUpdatingRoles(true);
+
+    try {
+      await apiFetchWithAuth(`/admin/users/${user.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ roles: editRoles }),
+      });
+
+      setNotice(`Peran ${user.email} berhasil diperbarui.`);
+      setRolesUserId(null);
+      setEditRoles([]);
+      setReloadToken((token) => token + 1);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      setLoadError(friendlyAdminError(message));
+    } finally {
+      setIsUpdatingRoles(false);
     }
   };
 
@@ -223,42 +268,9 @@ export default function AdminUsersPage() {
     }
   };
 
-  const handleLogout = () => {
-    clearSession();
-    router.replace('/login');
-  };
-
   return (
-    <div className="min-h-full bg-[#fbf9f4] text-emerald-950">
-      <header className="border-b border-emerald-900/10 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <Brand />
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/dashboard"
-              className="hidden text-sm font-medium text-stone-600 transition hover:text-emerald-900 sm:block"
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/"
-              className="hidden text-sm font-medium text-stone-600 transition hover:text-emerald-900 sm:block"
-            >
-              Beranda
-            </Link>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-full border border-emerald-900/15 px-4 py-2 text-sm font-semibold text-emerald-900 transition hover:border-emerald-900/40 hover:bg-white"
-            >
-              Keluar
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+    <DashboardShell requiredRole="admin">
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
             Administrasi
@@ -372,23 +384,26 @@ export default function AdminUsersPage() {
                 />
               </div>
 
-              <div>
-                <label htmlFor="role" className={labelClass}>
-                  Peran
-                </label>
-                <select
-                  id="role"
-                  name="role"
-                  value={role}
-                  onChange={(event) => setRole(event.target.value as AdminRole)}
-                  disabled={isCreating}
-                  className={inputClass}
-                >
-                  <option value="mentee">Mentee</option>
-                  <option value="mentor">Mentor</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
+              <fieldset>
+                <legend className={labelClass}>Peran</legend>
+                <div className="mt-2 flex flex-wrap gap-4">
+                  {ALL_ROLES.map((value) => (
+                    <label
+                      key={value}
+                      className="flex items-center gap-2 text-sm text-stone-600"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={roles.includes(value)}
+                        onChange={() => toggleRole(value)}
+                        disabled={isCreating}
+                        className="size-4 rounded border-emerald-900/20 text-emerald-900 focus:ring-emerald-700"
+                      />
+                      {roleLabels[value]}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
 
               <button
                 type="submit"
@@ -428,7 +443,7 @@ export default function AdminUsersPage() {
                 {Array.from({ length: 4 }).map((_, index) => (
                   <div
                     key={index}
-                    className="h-20 animate-pulse rounded-xl border border-emerald-900/10 bg-[#fbf9f4]"
+                    className="h-24 animate-pulse rounded-xl border border-emerald-900/10 bg-[#fbf9f4]"
                   />
                 ))}
               </div>
@@ -456,9 +471,14 @@ export default function AdminUsersPage() {
                           </p>
                         )}
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                          <span className="rounded-full bg-emerald-900/5 px-2.5 py-1 font-medium text-emerald-800">
-                            {roleLabels[user.role]}
-                          </span>
+                          {user.roles.map((role) => (
+                            <span
+                              key={role}
+                              className="rounded-full bg-emerald-900/5 px-2.5 py-1 font-medium text-emerald-800"
+                            >
+                              {roleLabels[role]}
+                            </span>
+                          ))}
                           <span
                             className={
                               user.is_active
@@ -475,10 +495,26 @@ export default function AdminUsersPage() {
                         <button
                           type="button"
                           onClick={() => {
+                            setRolesUserId(
+                              rolesUserId === user.id ? null : user.id,
+                            );
+                            setEditRoles(user.roles);
+                            setResetUserId(null);
+                            setNewPassword('');
+                          }}
+                          className={smallSecondary}
+                        >
+                          Atur peran
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
                             setResetUserId(
                               resetUserId === user.id ? null : user.id,
                             );
                             setNewPassword('');
+                            setRolesUserId(null);
+                            setEditRoles([]);
                           }}
                           className={smallSecondary}
                         >
@@ -493,6 +529,51 @@ export default function AdminUsersPage() {
                         </button>
                       </div>
                     </div>
+
+                    {rolesUserId === user.id && (
+                      <div className="mt-3 rounded-xl border border-emerald-900/10 bg-[#fbf9f4] p-3">
+                        <p className="text-xs font-medium text-stone-600">
+                          Peran untuk {user.email}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-4">
+                          {ALL_ROLES.map((value) => (
+                            <label
+                              key={value}
+                              className="flex items-center gap-2 text-sm text-stone-600"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={editRoles.includes(value)}
+                                onChange={() => toggleEditRole(value)}
+                                disabled={isUpdatingRoles}
+                                className="size-4 rounded border-emerald-900/20 text-emerald-900 focus:ring-emerald-700"
+                              />
+                              {roleLabels[value]}
+                            </label>
+                          ))}
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateRoles(user)}
+                            disabled={isUpdatingRoles}
+                            className={smallSecondary}
+                          >
+                            {isUpdatingRoles ? 'Menyimpan…' : 'Simpan peran'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRolesUserId(null);
+                              setEditRoles([]);
+                            }}
+                            className={smallSecondary}
+                          >
+                            Batal
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {resetUserId === user.id && (
                       <div className="mt-3 flex flex-col gap-2 rounded-xl border border-emerald-900/10 bg-[#fbf9f4] p-3 sm:flex-row sm:items-center">
@@ -535,7 +616,7 @@ export default function AdminUsersPage() {
             )}
           </section>
         </div>
-      </main>
-    </div>
+      </div>
+    </DashboardShell>
   );
 }
