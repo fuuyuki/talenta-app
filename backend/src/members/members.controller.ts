@@ -7,8 +7,10 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -33,6 +35,32 @@ export class MembersController {
     @Query('skip') skip?: string,
   ) {
     return this.membersService.list({ search, status, hasAccount, take, skip });
+  }
+
+  // Declared before `:id` so these paths are not captured by the id route.
+  @Get('export')
+  async export(@Res() res: Response) {
+    const csv = await this.membersService.exportCsv();
+    const filename = `anggota-${new Date().toISOString().slice(0, 10)}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  }
+
+  @Get('template')
+  template(@Res() res: Response) {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="template-anggota.csv"',
+    );
+    res.send(this.membersService.templateCsv());
+  }
+
+  @Post('import')
+  importCsv(@Body() body: unknown) {
+    return this.membersService.importCsv(body);
   }
 
   @Get(':id')

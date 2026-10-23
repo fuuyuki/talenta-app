@@ -10,6 +10,19 @@ import type {
   membersUncheckedUpdateInput,
 } from '../generated/prisma/models';
 import { PrismaService } from '../prisma.service';
+import {
+  MEMBER_CSV_COLUMNS,
+  buildCsv,
+  detectDelimiter,
+  formatCsvDate,
+  parseActivityStatusToken,
+  parseCsv,
+  parseDateToken,
+  parseGenderToken,
+  parseYearToken,
+  resolveCsvColumn,
+  type MemberCsvColumn,
+} from './members-csv';
 
 const ACTIVITY_STATUSES = [
   'active',
@@ -25,6 +38,29 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const MAX_IMPORT_ROWS = 5000;
+const MAX_REPORTED_ERRORS = 25;
+
+const TEMPLATE_SAMPLE_ROW = [
+  'Aisyah Rahma',
+  'aisyah@contoh.com',
+  '081234567890',
+  'P',
+  'Bandung',
+  '2004-05-17',
+  'Jl. Merdeka No. 1',
+  'SMA Negeri 1 Bandung',
+  'Bandung',
+  'Mahasiswa',
+  'Universitas Padjadjaran',
+  'Ekonomi',
+  'Manajemen',
+  '2022',
+  '',
+  'Dasar',
+  'active',
+];
 
 export type CreateMemberInput = {
   full_name?: string;
@@ -450,6 +486,301 @@ export class MembersService {
       roles: input.roles,
       member_id: id,
     });
+  }
+
+  async exportCsv() {
+    const rows = await this.prisma.members.findMany({
+      orderBy: { full_name: 'asc' },
+      select: {
+        full_name: true,
+        email: true,
+        phone: true,
+        gender: true,
+        birth_place: true,
+        birth_date: true,
+        address: true,
+        schools: { select: { name: true } },
+        cities: { select: { name: true } },
+        occupations: { select: { name: true } },
+        universities: { select: { name: true } },
+        faculty: true,
+        major: true,
+        entry_year: true,
+        graduation_year: true,
+        mentorship_tier: true,
+        activity_status: true,
+      },
+    });
+
+    const lines: unknown[][] = [[...MEMBER_CSV_COLUMNS]];
+
+    for (const row of rows) {
+      lines.push([
+        row.full_name,
+        row.email ?? '',
+        row.phone ?? '',
+        row.gender ?? '',
+        row.birth_place ?? '',
+        formatCsvDate(row.birth_date),
+        row.address ?? '',
+        row.schools?.name ?? '',
+        row.cities?.name ?? '',
+        row.occupations?.name ?? '',
+        row.universities?.name ?? '',
+        row.faculty ?? '',
+        row.major ?? '',
+        row.entry_year ?? '',
+        row.graduation_year ?? '',
+        row.mentorship_tier ?? '',
+        row.activity_status,
+      ]);
+    }
+
+    return buildCsv(lines);
+  }
+
+  templateCsv() {
+    return buildCsv([[...MEMBER_CSV_COLUMNS], TEMPLATE_SAMPLE_ROW]);
+  }
+
+  /**
+   * Upserts members by email. Rows without an email are always inserted, and
+   * empty cells leave the existing value untouched, so re-importing an export
+   * is safe.
+   */
+  async importCsv(body: unknown) {
+    if (typeof body !== 'string' || body.trim() === '') {
+      throw new BadRequestException(
+        'CSV body is required (send it with Content-Type: text/csv)',
+      );
+    }
+
+    const delimiter = detectDelimiter(body);
+    const rows = parseCsv(body, delimiter);
+
+    if (rows.length < 2) {
+      throw new BadRequestException(
+        'CSV must contain a header row and at least one data row',
+      );
+    }
+
+    const dataRowCount = rows.length - 1;
+    if (dataRowCount > MAX_IMPORT_ROWS) {
+      throw new BadRequestException(
+        `Too many rows: ${dataRowCount} (max ${MAX_IMPORT_ROWS} per import)`,
+      );
+    }
+
+    const headers = rows[0].map((value) => resolveCsvColumn(value));
+    if (!headers.includes('full_name')) {
+      throw new BadRequestException('CSV must include a full_name column');
+    }
+
+    let created = 0;
+    let updated = 0;
+    let failed = 0;
+    const errors: Array<{ row: number; message: string }> = [];
+
+    for (let index = 1; index < rows.length; index += 1) {
+      const cells = rows[index];
+      const raw: Partial<Record<MemberCsvColumn, string>> = {};
+
+      headers.forEach((column, position) => {
+        if (!column) return;
+        const value = cells[position]?.trim();
+        if (value) raw[column] = value;
+      });
+
+      try {
+        const input = await this.memberInputFromCsv(raw);
+        const data = buildMemberData(input);
+
+        if (!data.full_name) {
+          throw new BadRequestException('full_name is required');
+        }
+
+        const email = typeof data.email === 'string' ? data.email : undefined;
+        const existing = email
+          ? await this.prisma.members.findUnique({
+              where: { email },
+              select: { id: true },
+            })
+          : null;
+
+        if (existing) {
+          await this.prisma.members.update({
+            where: { id: existing.id },
+            data: {
+              ...data,
+              updated_at: new Date(),
+            } as membersUncheckedUpdateInput,
+          });
+          updated += 1;
+        } else {
+          await this.prisma.members.create({
+            data: data as membersUncheckedCreateInput,
+          });
+          created += 1;
+        }
+      } catch (error) {
+        failed += 1;
+        if (errors.length < MAX_REPORTED_ERRORS) {
+          errors.push({
+            row: index + 1,
+            message: this.describeImportError(error),
+          });
+        }
+      }
+    }
+
+    return {
+      total: dataRowCount,
+      created,
+      updated,
+      failed,
+      errors,
+      truncated: failed > errors.length,
+    };
+  }
+
+  private async memberInputFromCsv(
+    raw: Partial<Record<MemberCsvColumn, string>>,
+  ): Promise<CreateMemberInput> {
+    const input: CreateMemberInput = {
+      full_name: raw.full_name,
+      email: raw.email,
+      phone: raw.phone,
+      gender: raw.gender ? parseGenderToken(raw.gender) : undefined,
+      birth_place: raw.birth_place,
+      birth_date: raw.birth_date ? parseDateToken(raw.birth_date) : undefined,
+      address: raw.address,
+      faculty: raw.faculty,
+      major: raw.major,
+      entry_year: parseYearToken(raw.entry_year),
+      graduation_year: parseYearToken(raw.graduation_year),
+      mentorship_tier: raw.mentorship_tier,
+      activity_status: raw.activity_status
+        ? parseActivityStatusToken(raw.activity_status)
+        : undefined,
+    };
+
+    if (raw.school) input.sma_id = await this.resolveSchool(raw.school);
+    if (raw.city) input.domisili_id = await this.resolveCity(raw.city);
+    if (raw.occupation) {
+      input.occupation_id = await this.resolveOccupation(raw.occupation);
+    }
+    if (raw.university) {
+      input.university_id = await this.resolveUniversity(raw.university);
+    }
+
+    return input;
+  }
+
+  /** Lookups are matched case-insensitively and created when missing. */
+  private resolveSchool(name: string) {
+    return this.resolveLookup(
+      name,
+      (value) =>
+        this.prisma.schools.findFirst({
+          where: { name: { equals: value, mode: 'insensitive' } },
+          select: { id: true },
+        }),
+      (value) =>
+        this.prisma.schools.create({
+          data: { name: value },
+          select: { id: true },
+        }),
+    );
+  }
+
+  private resolveCity(name: string) {
+    return this.resolveLookup(
+      name,
+      (value) =>
+        this.prisma.cities.findFirst({
+          where: { name: { equals: value, mode: 'insensitive' } },
+          select: { id: true },
+        }),
+      (value) =>
+        this.prisma.cities.create({
+          data: { name: value },
+          select: { id: true },
+        }),
+    );
+  }
+
+  private resolveOccupation(name: string) {
+    return this.resolveLookup(
+      name,
+      (value) =>
+        this.prisma.occupations.findFirst({
+          where: { name: { equals: value, mode: 'insensitive' } },
+          select: { id: true },
+        }),
+      (value) =>
+        this.prisma.occupations.create({
+          data: { name: value },
+          select: { id: true },
+        }),
+    );
+  }
+
+  private resolveUniversity(name: string) {
+    return this.resolveLookup(
+      name,
+      (value) =>
+        this.prisma.universities.findFirst({
+          where: { name: { equals: value, mode: 'insensitive' } },
+          select: { id: true },
+        }),
+      (value) =>
+        this.prisma.universities.create({
+          data: { name: value },
+          select: { id: true },
+        }),
+    );
+  }
+
+  private async resolveLookup(
+    rawName: string,
+    findFirst: (name: string) => Promise<{ id: number } | null>,
+    create: (name: string) => Promise<{ id: number }>,
+  ): Promise<number | undefined> {
+    const name = rawName.trim().replace(/\s+/g, ' ');
+    if (!name) return undefined;
+
+    const existing = await findFirst(name);
+    if (existing) return existing.id;
+
+    try {
+      const created = await create(name);
+      return created.id;
+    } catch (error) {
+      // A previous row may have created the same lookup concurrently.
+      if ((error as { code?: string }).code === 'P2002') {
+        const raced = await findFirst(name);
+        if (raced) return raced.id;
+      }
+      throw error;
+    }
+  }
+
+  private describeImportError(error: unknown): string {
+    if (error instanceof BadRequestException) {
+      const response = error.getResponse();
+      if (typeof response === 'string') return response;
+
+      const message = (response as { message?: string | string[] }).message;
+      if (Array.isArray(message)) return message.join(', ');
+      return message ?? 'Invalid row';
+    }
+
+    const code = (error as { code?: string }).code;
+    if (code === 'P2002') return 'Email already used by another member';
+    if (code === 'P2003') return 'Invalid reference';
+    if (code === 'P2023') return 'Invalid value for a column';
+
+    return 'Could not save this row';
   }
 
   private assertMemberId(id: string) {
