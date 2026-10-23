@@ -1,10 +1,34 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { getSession, saveSession, type LoginResponse } from "@/lib/auth";
+import { Brand } from "@/components/logo";
+import { GeometricPattern } from "@/components/geometric-pattern";
+
+const featureList = [
+  "Terhubung dengan mentor berpengalaman",
+  "Pantau sesi dan perkembangan",
+  "Dibangun untuk pengembangan kader",
+];
+
+function friendlyError(message: string) {
+  if (!message || message === "Failed to fetch") {
+    return "Tidak dapat terhubung ke server. Silakan coba lagi.";
+  }
+  if (message === "Invalid credentials") {
+    return "Email atau kata sandi salah.";
+  }
+  if (message === "Account is inactive") {
+    return "Akun Anda tidak aktif. Hubungi administrator.";
+  }
+  if (message.startsWith("Request failed with status")) {
+    return "Tidak dapat terhubung ke server. Silakan coba lagi.";
+  }
+  return message;
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,7 +42,7 @@ export default function LoginPage() {
     if (getSession()) router.replace("/dashboard");
   }, [router]);
 
-  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!event.currentTarget.checkValidity()) {
@@ -28,7 +52,7 @@ export default function LoginPage() {
 
     const trimmedEmail = email.trim();
     if (!trimmedEmail || !password) {
-      setError("Enter your email and password.");
+      setError("Masukkan email dan kata sandi Anda.");
       return;
     }
 
@@ -45,83 +69,87 @@ export default function LoginPage() {
       router.replace("/dashboard");
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
-      setError(
-        message && message !== "Failed to fetch"
-          ? message
-          : "Unable to reach the server. Please try again.",
-      );
+      setError(friendlyError(message));
       setIsSubmitting(false);
     }
   };
 
   return (
     <div className="flex flex-1 flex-col lg:flex-row">
-      <aside className="relative hidden overflow-hidden bg-slate-900 px-12 py-10 text-white lg:flex lg:w-1/2 lg:flex-col lg:justify-between">
+      <aside className="relative hidden overflow-hidden bg-emerald-950 px-12 py-10 text-white lg:flex lg:w-1/2 lg:flex-col lg:justify-between">
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -right-32 -top-32 size-96 rounded-full bg-indigo-500/30 blur-3xl"
+          className="pointer-events-none absolute inset-0 text-white"
+        >
+          <GeometricPattern className="opacity-[0.06]" />
+        </div>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-32 -top-32 size-96 rounded-full bg-amber-300/20 blur-3xl"
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -bottom-40 -left-24 size-96 rounded-full bg-sky-500/20 blur-3xl"
+          className="pointer-events-none absolute -bottom-40 -left-24 size-96 rounded-full bg-emerald-500/20 blur-3xl"
         />
 
         <div className="relative">
-          <div className="flex items-center gap-2.5">
-            <span className="grid size-10 place-items-center rounded-xl bg-indigo-500 text-lg font-bold shadow-lg shadow-indigo-500/30">
-              T
-            </span>
-            <span className="text-xl font-semibold tracking-tight">Talenta</span>
-          </div>
+          <Brand tone="dark" />
         </div>
 
         <div className="relative max-w-md">
-          <h2 className="text-4xl font-semibold tracking-tight">
-            Grow with the right mentor.
-          </h2>
-          <p className="mt-4 text-base leading-relaxed text-slate-300">
-            Talenta brings mentors and mentees together in one place, so every
-            session moves you closer to your goals.
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">
+            Platform Mentorship
           </p>
-          <ul className="mt-8 space-y-3 text-sm text-slate-300">
-            <li className="flex items-center gap-3">
-              <span className="size-1.5 rounded-full bg-indigo-400" />
-              Connect with experienced mentors
-            </li>
-            <li className="flex items-center gap-3">
-              <span className="size-1.5 rounded-full bg-indigo-400" />
-              Track sessions and progress
-            </li>
-            <li className="flex items-center gap-3">
-              <span className="size-1.5 rounded-full bg-indigo-400" />
-              Built for kader development
-            </li>
+          <h1 className="mt-4 font-serif text-4xl font-semibold leading-tight">
+            Tumbuh bersama mentor yang tepat.
+          </h1>
+          <p className="mt-4 text-base leading-relaxed text-emerald-100/70">
+            Talenta mempertemukan mentor dan mentee dalam satu ruang, agar
+            setiap sesi membawa Anda lebih dekat ke tujuan.
+          </p>
+          <ul className="mt-8 space-y-3 text-sm text-emerald-100/70">
+            {featureList.map((feature) => (
+              <li key={feature} className="flex items-center gap-3">
+                <span
+                  aria-hidden="true"
+                  className="size-1.5 rounded-full bg-amber-400"
+                />
+                {feature}
+              </li>
+            ))}
           </ul>
         </div>
 
-        <p className="relative text-xs text-slate-500">
-          Talenta Mentorship Platform
-        </p>
+        <div className="relative flex items-center justify-between gap-4 text-xs text-emerald-100/50">
+          <span>Yayasan Talenta Insan Nusantara</span>
+          <Link
+            href="/"
+            className="font-medium text-emerald-100/70 transition hover:text-white"
+          >
+            ← Beranda
+          </Link>
+        </div>
       </aside>
 
-      <main className="flex flex-1 items-center justify-center bg-slate-50 px-4 py-12 dark:bg-slate-950 sm:px-8">
+      <main className="flex flex-1 items-center justify-center bg-[#fbf9f4] px-4 py-12 sm:px-8">
         <div className="w-full max-w-md">
-          <div className="mb-8 flex items-center gap-2.5 lg:hidden">
-            <span className="grid size-10 place-items-center rounded-xl bg-indigo-600 text-lg font-bold text-white shadow-lg shadow-indigo-600/30">
-              T
-            </span>
-            <span className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white">
-              Talenta
-            </span>
+          <div className="mb-8 flex items-center justify-between gap-4 lg:hidden">
+            <Brand />
+            <Link
+              href="/"
+              className="text-sm font-medium text-emerald-800 transition hover:text-emerald-950"
+            >
+              ← Beranda
+            </Link>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+          <div className="rounded-3xl border border-emerald-900/10 bg-white p-6 shadow-xl shadow-emerald-950/5 sm:p-8">
             <div className="mb-6">
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
-                Welcome back
+              <h1 className="font-serif text-2xl font-semibold tracking-tight text-emerald-950">
+                Selamat datang kembali
               </h1>
-              <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
-                Sign in to continue to your dashboard.
+              <p className="mt-1.5 text-sm text-stone-500">
+                Masuk untuk melanjutkan ke dashboard.
               </p>
             </div>
 
@@ -129,7 +157,7 @@ export default function LoginPage() {
               <div>
                 <label
                   htmlFor="email"
-                  className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                  className="mb-1.5 block text-sm font-medium text-emerald-950"
                 >
                   Email
                 </label>
@@ -145,17 +173,17 @@ export default function LoginPage() {
                   disabled={isSubmitting}
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@example.com"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"
+                  placeholder="nama@email.com"
+                  className="w-full rounded-xl border border-emerald-900/15 bg-white px-3.5 py-2.5 text-sm text-emerald-950 shadow-sm outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </div>
 
               <div>
                 <label
                   htmlFor="password"
-                  className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                  className="mb-1.5 block text-sm font-medium text-emerald-950"
                 >
-                  Password
+                  Kata sandi
                 </label>
                 <div className="relative">
                   <input
@@ -167,17 +195,19 @@ export default function LoginPage() {
                     disabled={isSubmitting}
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    placeholder="Enter your password"
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 pr-11 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"
+                    placeholder="Masukkan kata sandi"
+                    className="w-full rounded-xl border border-emerald-900/15 bg-white px-3.5 py-2.5 pr-11 text-sm text-emerald-950 shadow-sm outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15 disabled:cursor-not-allowed disabled:opacity-60"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((visible) => !visible)}
                     aria-label={
-                      showPassword ? "Hide password" : "Show password"
+                      showPassword
+                        ? "Sembunyikan kata sandi"
+                        : "Tampilkan kata sandi"
                     }
                     aria-pressed={showPassword}
-                    className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-slate-400 transition hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:hover:text-slate-200"
+                    className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-stone-400 transition hover:text-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60"
                   >
                     {showPassword ? <EyeOffIcon /> : <EyeIcon />}
                   </button>
@@ -188,7 +218,7 @@ export default function LoginPage() {
                 <div
                   role="alert"
                   aria-live="polite"
-                  className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
+                  className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700"
                 >
                   {error}
                 </div>
@@ -197,7 +227,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 dark:focus-visible:ring-offset-slate-900"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isSubmitting && (
                   <span
@@ -205,21 +235,13 @@ export default function LoginPage() {
                     className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
                   />
                 )}
-                {isSubmitting ? "Signing in…" : "Sign in"}
+                {isSubmitting ? "Memproses…" : "Masuk"}
               </button>
             </form>
           </div>
 
-          <p className="mt-6 text-center text-xs text-slate-400 dark:text-slate-500">
-            Contact your administrator if you cannot access your account.
-          </p>
-          <p className="mt-2 text-center text-xs">
-            <Link
-              href="/"
-              className="font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-            >
-              ← Kembali ke beranda
-            </Link>
+          <p className="mt-6 text-center text-xs text-stone-500">
+            Hubungi administrator jika Anda tidak dapat mengakses akun.
           </p>
         </div>
       </main>
