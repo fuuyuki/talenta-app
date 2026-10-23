@@ -14,7 +14,10 @@ export type CreateUserInput = {
   email?: string;
   password?: string;
   roles?: string[];
+  /** Convenience: create a new member record together with the account. */
   full_name?: string;
+  /** Link the account to an existing member (that has no account yet). */
+  member_id?: string;
 };
 
 export type UpdateUserInput = {
@@ -47,9 +50,9 @@ function normalizeRoles(input: string[] | undefined): AdminRole[] {
   return unique as AdminRole[];
 }
 
-function assertUuid(id: string) {
+function assertUuid(id: string, label = 'user') {
   if (!UUID_PATTERN.test(id)) {
-    throw new BadRequestException('Invalid user id');
+    throw new BadRequestException(`Invalid ${label} id`);
   }
 }
 
@@ -72,8 +75,8 @@ export class AdminService {
     email: true,
     is_active: true,
     created_at: true,
-    member_profiles: {
-      select: { full_name: true },
+    member: {
+      select: { id: true, full_name: true },
     },
     user_roles: {
       select: { roles: { select: { code: true } } },
@@ -107,7 +110,7 @@ export class AdminService {
                 },
               },
               {
-                member_profiles: {
+                member: {
                   is: {
                     full_name: {
                       contains: search,
@@ -144,6 +147,28 @@ export class AdminService {
     const password = assertPassword(input.password);
     const roles = normalizeRoles(input.roles ?? ['mentee']);
     const fullName = input.full_name?.trim();
+    const memberId = input.member_id?.trim();
+
+    if (fullName && memberId) {
+      throw new BadRequestException(
+        'Provide either member_id or full_name, not both',
+      );
+    }
+
+    if (memberId) {
+      assertUuid(memberId, 'member');
+
+      const member = await this.prisma.members.findUnique({
+        where: { id: memberId },
+        select: { id: true, user_id: true },
+      });
+      if (!member) {
+        throw new NotFoundException('Member not found');
+      }
+      if (member.user_id) {
+        throw new ConflictException('Member already has an account');
+      }
+    }
 
     const existing = await this.prisma.users.findUnique({
       where: { email },
@@ -151,6 +176,23 @@ export class AdminService {
     });
     if (existing) {
       throw new ConflictException('Email already exists');
+    }
+
+    // If the roster already has this person, link the account to that member
+    // instead of creating a duplicate member record.
+    let linkedMemberId = memberId;
+    if (!linkedMemberId && fullName) {
+      const existingMember = await this.prisma.members.findUnique({
+        where: { email },
+        select: { id: true, user_id: true },
+      });
+
+      if (existingMember) {
+        if (existingMember.user_id) {
+          throw new ConflictException('Email already exists');
+        }
+        linkedMemberId = existingMember.id;
+      }
     }
 
     const roleRecords = await this.prisma.roles.findMany({
@@ -163,21 +205,31 @@ export class AdminService {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    const user = await this.prisma.users.create({
-      data: {
-        email,
-        password_hash: passwordHash,
-        ...(fullName
-          ? { member_profiles: { create: { full_name: fullName } } }
-          : {}),
-        user_roles: {
-          create: roleRecords.map((record) => ({ role_id: record.id })),
+    try {
+      const user = await this.prisma.users.create({
+        data: {
+          email,
+          password_hash: passwordHash,
+          ...(linkedMemberId
+            ? { member: { connect: { id: linkedMemberId } } }
+            : fullName
+              ? { member: { create: { full_name: fullName, email } } }
+              : {}),
+          user_roles: {
+            create: roleRecords.map((record) => ({ role_id: record.id })),
+          },
         },
-      },
-      select: this.userSelect,
-    });
+        select: this.userSelect,
+      });
 
-    return this.withRoles(user);
+      return this.withRoles(user);
+    } catch (error) {
+      // A member (or account) with the same email may already exist.
+      if ((error as { code?: string }).code === 'P2002') {
+        throw new ConflictException('Email already exists');
+      }
+      throw error;
+    }
   }
 
   async updateUser(id: string, input: UpdateUserInput) {

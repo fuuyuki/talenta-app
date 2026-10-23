@@ -22,30 +22,34 @@ model articles {
 }
 
 model cities {
-  id              Int               @id @default(autoincrement())
-  name            String            @unique
-  member_profiles member_profiles[]
+  id      Int       @id @default(autoincrement())
+  name    String    @unique
+  members members[]
 }
 
 model groups {
-  id                            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                          String
-  mentor_id                     String?    @db.Uuid
-  created_at                    DateTime   @default(now()) @db.Timestamptz(6)
-  users_groups_mentor_idTousers users?     @relation("groups_mentor_idTousers", fields: [mentor_id], references: [id], onUpdate: NoAction, map: "fk_groups_mentor")
-  sessions                      sessions[]
-  users_users_group_idTogroups  users[]    @relation("users_group_idTogroups")
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  mentor_id String?    @db.Uuid
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  mentor    members?   @relation("groups_mentor_idTousers", fields: [mentor_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_groups_mentor")
+  sessions  sessions[]
+  members   members[]
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model member_profiles {
-  user_id         String        @id @db.Uuid
+/// Master roster. A member can exist without ever having a login account:
+/// `user_id` stays NULL until an admin creates one. Deleting the account
+/// clears the link instead of deleting the member.
+model members {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String?       @unique(map: "uq_members_user") @db.Uuid
   full_name       String
+  email           String?       @unique
+  phone           String?
   gender          String?
   birth_place     String?
   birth_date      DateTime?     @db.Date
   address         String?
-  phone           String?
   sma_id          Int?
   domisili_id     Int?
   occupation_id   Int?
@@ -56,32 +60,48 @@ model member_profiles {
   graduation_year Int?          @db.SmallInt
   mentorship_tier String?
   activity_status String        @default("active")
+  group_id        String?       @db.Uuid
+  mentor_id       String?       @db.Uuid
+  joined_at       DateTime      @default(now()) @db.Timestamptz(6)
   created_at      DateTime      @default(now()) @db.Timestamptz(6)
   updated_at      DateTime      @default(now()) @db.Timestamptz(6)
+  user            users?        @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  group           groups?       @relation(fields: [group_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_members_group")
+  mentor          members?      @relation("membersTousers", fields: [mentor_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  mentees         members[]     @relation("membersTousers")
   cities          cities?       @relation(fields: [domisili_id], references: [id], onUpdate: NoAction)
   occupations     occupations?  @relation(fields: [occupation_id], references: [id], onUpdate: NoAction)
   schools         schools?      @relation(fields: [sma_id], references: [id], onUpdate: NoAction)
   universities    universities? @relation(fields: [university_id], references: [id], onUpdate: NoAction)
-  users           users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  member_organizations               member_organizations[]
+  groups_groups_mentor_idTousers     groups[]             @relation("groups_mentor_idTousers")
+  sessions_sessions_mentee_idTousers sessions[]           @relation("sessions_mentee_idTousers")
+  sessions_sessions_mentor_idTousers sessions[]           @relation("sessions_mentor_idTousers")
+
+  @@index([group_id], map: "idx_members_group")
+  @@index([mentor_id], map: "idx_members_mentor")
+  @@index([activity_status], map: "idx_members_status")
+  @@index([full_name], map: "idx_members_full_name")
 }
 
 model occupations {
-  id              Int               @id @default(autoincrement())
-  name            String            @unique
-  member_profiles member_profiles[]
+  id      Int       @id @default(autoincrement())
+  name    String    @unique
+  members members[]
 }
 
 model organizations {
-  id                 Int                  @id @default(autoincrement())
-  name               String               @unique
-  category           String?
-  user_organizations user_organizations[]
+  id                   Int                    @id @default(autoincrement())
+  name                 String                 @unique
+  category             String?
+  member_organizations member_organizations[]
 }
 
 model schools {
-  id              Int               @id @default(autoincrement())
-  name            String            @unique
-  member_profiles member_profiles[]
+  id      Int       @id @default(autoincrement())
+  name    String    @unique
+  members members[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -99,49 +119,38 @@ model sessions {
   status                          String    @default("scheduled")
   created_at                      DateTime  @default(now()) @db.Timestamptz(6)
   groups                          groups?   @relation(fields: [group_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  users_sessions_mentee_idTousers users?    @relation("sessions_mentee_idTousers", fields: [mentee_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  users_sessions_mentor_idTousers users?    @relation("sessions_mentor_idTousers", fields: [mentor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  mentee                          members?  @relation("sessions_mentee_idTousers", fields: [mentee_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  mentor                          members?  @relation("sessions_mentor_idTousers", fields: [mentor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 model universities {
-  id              Int               @id @default(autoincrement())
-  name            String            @unique
-  member_profiles member_profiles[]
+  id      Int       @id @default(autoincrement())
+  name    String    @unique
+  members members[]
 }
 
-model user_organizations {
-  user_id         String        @db.Uuid
+model member_organizations {
+  member_id       String        @db.Uuid
   organization_id Int
   joined_at       DateTime?     @default(now()) @db.Timestamptz(6)
   organizations   organizations @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  users           users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  members         members       @relation(fields: [member_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@id([user_id, organization_id])
+  @@id([member_id, organization_id])
 }
 
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// Authentication only. Profile / roster data lives in `members`;
+/// authorisation lives in `user_roles`.
 model users {
-  id                                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email                              String               @unique
-  password_hash                      String
-  is_active                          Boolean              @default(true)
-  group_id                           String?              @db.Uuid
-  mentor_id                          String?              @db.Uuid
-  created_at                         DateTime             @default(now()) @db.Timestamptz(6)
-  updated_at                         DateTime             @default(now()) @db.Timestamptz(6)
-  articles                           articles[]
-  groups_groups_mentor_idTousers     groups[]             @relation("groups_mentor_idTousers")
-  member_profiles                    member_profiles?
-  sessions_sessions_mentee_idTousers sessions[]           @relation("sessions_mentee_idTousers")
-  sessions_sessions_mentor_idTousers sessions[]           @relation("sessions_mentor_idTousers")
-  user_organizations                 user_organizations[]
-  user_roles                         user_roles[]
-  groups_users_group_idTogroups      groups?              @relation("users_group_idTogroups", fields: [group_id], references: [id], onUpdate: NoAction)
-  users                              users?               @relation("usersTousers", fields: [mentor_id], references: [id], onUpdate: NoAction)
-  other_users                        users[]              @relation("usersTousers")
-
-  @@index([group_id], map: "idx_users_group")
-  @@index([mentor_id], map: "idx_users_mentor")
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String     @unique
+  password_hash String
+  is_active     Boolean    @default(true)
+  created_at    DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime   @default(now()) @db.Timestamptz(6)
+  articles      articles[]
+  member        members?
+  user_roles    user_roles[]
 }
 
 model roles {
