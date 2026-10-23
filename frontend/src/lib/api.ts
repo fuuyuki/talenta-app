@@ -36,3 +36,27 @@ export async function apiFetchWithAuth(
     },
   });
 }
+
+/** Fetches an authenticated file and triggers a browser download. */
+export async function apiDownload(endpoint: string, filename: string) {
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+  const res = await fetch(`${API_URL}${endpoint}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!res.ok) {
+    throw new Error(`Request failed with status ${res.status}`);
+  }
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}

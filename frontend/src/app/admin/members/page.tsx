@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { apiFetchWithAuth } from '@/lib/api';
+import { apiDownload, apiFetchWithAuth } from '@/lib/api';
 import { clearSession } from '@/lib/auth';
 import { DashboardShell } from '@/components/dashboard-shell';
 
@@ -33,6 +33,15 @@ type MemberListResponse = {
   total: number;
   take: number;
   skip: number;
+};
+
+type ImportResult = {
+  total: number;
+  created: number;
+  updated: number;
+  failed: number;
+  errors: Array<{ row: number; message: string }>;
+  truncated: boolean;
 };
 
 const PAGE_SIZE = 25;
@@ -103,14 +112,24 @@ function friendlyMemberError(message: string) {
   if (message.includes('full_name is required')) {
     return 'Nama lengkap wajib diisi.';
   }
+  if (message.includes('must include a full_name column')) {
+    return 'Berkas CSV harus memiliki kolom full_name.';
+  }
+  if (message.includes('Too many rows')) {
+    return 'Terlalu banyak baris dalam satu impor (maksimal 5000).';
+  }
   if (message.includes('403')) {
     return 'Anda tidak memiliki akses admin.';
+  }
+  if (message.includes('413')) {
+    return 'Berkas terlalu besar. Maksimal 10 MB.';
   }
   return message;
 }
 
 export default function AdminMembersPage() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [members, setMembers] = useState<Member[] | null>(null);
   const [total, setTotal] = useState(0);
@@ -140,6 +159,11 @@ export default function AdminMembersPage() {
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
 
   const [statusMemberId, setStatusMemberId] = useState<string | null>(null);
+
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -324,6 +348,50 @@ export default function AdminMembersPage() {
     }
   };
 
+  const handleDownload = async (endpoint: string, filename: string) => {
+    setLoadError('');
+    setIsDownloading(true);
+
+    try {
+      await apiDownload(endpoint, filename);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      setLoadError(friendlyMemberError(message));
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setImportError('');
+    setImportResult(null);
+    setLoadError('');
+    setNotice('');
+    setIsImporting(true);
+
+    try {
+      const text = await file.text();
+      const result = (await apiFetchWithAuth('/admin/members/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/csv' },
+        body: text,
+      })) as ImportResult;
+
+      setImportResult(result);
+      setPage(0);
+      setReloadToken((token) => token + 1);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      setImportError(friendlyMemberError(message));
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
@@ -489,6 +557,98 @@ export default function AdminMembersPage() {
                 {total} anggota
               </span>
             </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  handleDownload('/admin/members/template', 'template-anggota.csv')
+                }
+                disabled={isDownloading}
+                className={smallSecondary}
+              >
+                Unduh template
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  handleDownload('/admin/members/export', 'anggota.csv')
+                }
+                disabled={isDownloading}
+                className={smallSecondary}
+              >
+                Ekspor CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isImporting}
+                className={smallSecondary}
+              >
+                {isImporting ? 'Mengimpor…' : 'Impor CSV'}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleImportFile}
+                className="hidden"
+              />
+            </div>
+
+            <details className="mt-3 text-xs leading-relaxed text-stone-500">
+              <summary className="cursor-pointer font-medium text-emerald-800">
+                Format CSV yang didukung
+              </summary>
+              <p className="mt-2">
+                Kolom wajib: <code>full_name</code>. Opsional: <code>email</code>,{' '}
+                <code>phone</code>, <code>gender</code> (L/P),{' '}
+                <code>birth_place</code>, <code>birth_date</code>,{' '}
+                <code>address</code>, <code>school</code>, <code>city</code>,{' '}
+                <code>occupation</code>, <code>university</code>,{' '}
+                <code>faculty</code>, <code>major</code>,{' '}
+                <code>entry_year</code>, <code>graduation_year</code>,{' '}
+                <code>mentorship_tier</code>, <code>activity_status</code>.
+              </p>
+              <p className="mt-2">
+                Nama kolom Indonesia (mis. <code>nama_lengkap</code>,{' '}
+                <code>no_hp</code>, <code>jurusan</code>) juga diterima. Baris
+                dengan email yang sudah ada akan diperbarui; sel kosong tidak
+                menghapus data lama.
+              </p>
+            </details>
+
+            {importError && (
+              <div
+                role="alert"
+                className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+              >
+                {importError}
+              </div>
+            )}
+
+            {importResult && (
+              <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                <p className="font-semibold">Impor selesai.</p>
+                <p className="mt-1">
+                  {importResult.created} ditambahkan, {importResult.updated}{' '}
+                  diperbarui, {importResult.failed} gagal dari{' '}
+                  {importResult.total} baris.
+                </p>
+                {importResult.errors.length > 0 && (
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-red-700">
+                    {importResult.errors.map((error) => (
+                      <li key={`${error.row}-${error.message}`}>
+                        Baris {error.row}: {error.message}
+                      </li>
+                    ))}
+                    {importResult.truncated && (
+                      <li>…dan baris gagal lainnya tidak ditampilkan.</li>
+                    )}
+                  </ul>
+                )}
+              </div>
+            )}
 
             <form
               onSubmit={handleSearch}
