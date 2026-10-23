@@ -78,7 +78,7 @@ export class SuperadminBootstrapService implements OnApplicationBootstrap {
 
       if (code === 'P2025') {
         this.logger.error(
-          'The admin role is missing. Run the 001_add_user_roles migration first.',
+          'The admin role is missing from the roles table. Re-initialise the database from db/init/01_schema.sql.',
         );
         return;
       }
@@ -101,10 +101,10 @@ export class SuperadminBootstrapService implements OnApplicationBootstrap {
 
       if (code === 'P2021') {
         this.logger.error(
-          'Database is not migrated: the roles/user_roles tables are missing. ' +
-            'Run db/migrations/001_add_user_roles.sql before starting this version.',
+          'Database is not initialised: the roles/user_roles tables are missing. ' +
+            'Create the database from db/init/01_schema.sql.',
         );
-        throw new Error('Database migration 001_add_user_roles.sql has not been applied');
+        throw new Error('Database schema is not initialised (roles tables missing)');
       }
 
       throw error;

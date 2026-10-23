@@ -5,9 +5,13 @@
 # Run from anywhere; paths are resolved from the repo root.
 #
 #   ./db/migrations/migrate.sh backup             dump the DB into db/backups/
-#   ./db/migrations/migrate.sh apply 001_add_user_roles.sql
+#   ./db/migrations/migrate.sh apply 005_example.sql
 #   ./db/migrations/migrate.sh verify             users, roles, members report
-#   ./db/migrations/migrate.sh all                backup + 001 + 003 + verify
+#   ./db/migrations/migrate.sh all                backup + verify
+#
+# Fresh databases are created from db/init/01_schema.sql, which is the
+# single source of truth for the schema. Migrations only exist for changes
+# applied after a database has already been initialised.
 #
 # All SQL is executed inside the `db` container using its own POSTGRES_USER /
 # POSTGRES_DB, so no credentials or quoting are needed on the host.
@@ -113,7 +117,7 @@ JOIN members m ON m.user_id = u.id
 ORDER BY u.email;
 \else
 \echo ''
-\echo '!! members table not created yet - run: ./db/migrations/migrate.sh apply 003_members_table.sql'
+\echo '!! members table missing - this database was not initialised from db/init/01_schema.sql'
 \endif
 SQL
 }
@@ -124,8 +128,6 @@ case "${1:-}" in
   verify) cmd_verify ;;
   all)
     cmd_backup
-    cmd_apply 001_add_user_roles.sql
-    cmd_apply 003_members_table.sql
     cmd_verify
     ;;
   *)
@@ -135,7 +137,7 @@ Usage: ./db/migrations/migrate.sh <command>
   backup             dump the database into db/backups/ (custom format)
   apply <file.sql>   apply a file from db/migrations/
   verify             users, roles and members report
-  all                backup + 001_add_user_roles.sql + 003_members_table.sql + verify
+  all                backup + verify
 EOF
     exit 1
     ;;
