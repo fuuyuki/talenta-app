@@ -103,25 +103,16 @@ export default function LoginPage() {
         </div>
 
         <div className="relative max-w-md">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">
-            Platform Mentorship
-          </p>
-          <h1 className="mt-4 font-serif text-4xl font-semibold leading-tight">
+          <h1 className="font-serif text-4xl font-semibold leading-tight">
             Tumbuh bersama mentor yang tepat.
           </h1>
-          <p className="mt-4 text-base leading-relaxed text-emerald-100/70">
+          <p className="mt-4 text-base leading-relaxed text-on-dark-muted">
             Talenta mempertemukan mentor dan mentee dalam satu ruang, agar
             setiap sesi membawa Anda lebih dekat ke tujuan.
           </p>
-          <ul className="mt-8 space-y-3 text-sm text-emerald-100/70">
+          <ul className="mt-8 space-y-3 text-sm text-on-dark-muted">
             {featureList.map((feature) => (
-              <li key={feature} className="flex items-center gap-3">
-                <span
-                  aria-hidden="true"
-                  className="size-1.5 rounded-full bg-amber-400"
-                />
-                {feature}
-              </li>
+              <li key={feature}>{feature}</li>
             ))}
           </ul>
         </div>
@@ -132,12 +123,12 @@ export default function LoginPage() {
             href="/"
             className="font-medium text-emerald-100/70 transition hover:text-white"
           >
-            ← Beranda
+            Beranda
           </Link>
         </div>
       </aside>
 
-      <main className="flex flex-1 items-center justify-center bg-[#fbf9f4] px-4 py-12 sm:px-8">
+      <main className="flex flex-1 items-center justify-center bg-paper px-4 py-12 sm:px-8">
         <div className="w-full max-w-md">
           <div className="mb-8 flex items-center justify-between gap-4 lg:hidden">
             <Brand />
@@ -145,7 +136,7 @@ export default function LoginPage() {
               href="/"
               className="text-sm font-medium text-emerald-800 transition hover:text-emerald-950"
             >
-              ← Beranda
+              Beranda
             </Link>
           </div>
 

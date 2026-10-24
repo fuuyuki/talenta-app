@@ -35,7 +35,7 @@ const primaryButton =
   'inline-flex w-full items-center justify-center rounded-xl bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70';
 
 const smallSecondary =
-  'rounded-full border border-emerald-900/15 px-3 py-1.5 text-xs font-semibold text-emerald-900 transition hover:border-emerald-900/40 hover:bg-[#fbf9f4] disabled:cursor-not-allowed disabled:opacity-60';
+  'rounded-full border border-emerald-900/15 px-3 py-1.5 text-xs font-semibold text-emerald-900 transition hover:border-emerald-900/40 hover:bg-paper disabled:cursor-not-allowed disabled:opacity-60';
 
 function friendlyAdminError(message: string) {
   if (!message || message === 'Failed to fetch') {
@@ -273,7 +273,7 @@ export default function AdminUsersPage() {
     <DashboardShell requiredRole="admin">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
+          <p className="text-sm font-medium text-amber-700">
             Administrasi
           </p>
           <h1 className="mt-3 font-serif text-3xl font-semibold text-emerald-950 sm:text-4xl">
@@ -452,7 +452,7 @@ export default function AdminUsersPage() {
                 {Array.from({ length: 4 }).map((_, index) => (
                   <div
                     key={index}
-                    className="h-24 animate-pulse rounded-xl border border-emerald-900/10 bg-[#fbf9f4]"
+                    className="h-24 animate-pulse rounded-xl border border-emerald-900/10 bg-paper"
                   />
                 ))}
               </div>
@@ -540,7 +540,7 @@ export default function AdminUsersPage() {
                     </div>
 
                     {rolesUserId === user.id && (
-                      <div className="mt-3 rounded-xl border border-emerald-900/10 bg-[#fbf9f4] p-3">
+                      <div className="mt-3 rounded-xl border border-emerald-900/10 bg-paper p-3">
                         <p className="text-xs font-medium text-stone-600">
                           Peran untuk {user.email}
                         </p>
@@ -585,7 +585,7 @@ export default function AdminUsersPage() {
                     )}
 
                     {resetUserId === user.id && (
-                      <div className="mt-3 flex flex-col gap-2 rounded-xl border border-emerald-900/10 bg-[#fbf9f4] p-3 sm:flex-row sm:items-center">
+                      <div className="mt-3 flex flex-col gap-2 rounded-xl border border-emerald-900/10 bg-paper p-3 sm:flex-row sm:items-center">
                         <input
                           type="password"
                           autoComplete="new-password"

@@ -18,23 +18,19 @@ const values = [
 ];
 
 export function ValuesGrid({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
-  const cardClass =
-    tone === 'dark'
-      ? 'border-white/10 bg-white/5'
-      : 'border-emerald-900/10 bg-white';
-  const titleClass = tone === 'dark' ? 'text-white' : 'text-emerald-950';
-  const bodyClass =
-    tone === 'dark' ? 'text-emerald-100/70' : 'text-stone-600';
-  const markerClass = tone === 'dark' ? 'text-amber-300' : 'text-amber-600';
+  const ruleClass = tone === 'dark' ? 'border-rule-dark' : 'border-rule';
+  const titleClass = tone === 'dark' ? 'text-on-dark' : 'text-ink';
+  const bodyClass = tone === 'dark' ? 'text-on-dark-muted' : 'text-ink-muted';
+  const markerClass = tone === 'dark' ? 'text-azure-300' : 'text-azure-600';
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
       {values.map((value, index) => (
-        <div key={value.title} className={`rounded-2xl border p-5 ${cardClass}`}>
-          <span className={`font-serif text-sm font-semibold ${markerClass}`}>
+        <div key={value.title} className={`border-t pt-4 ${ruleClass}`}>
+          <span className={`font-serif text-sm ${markerClass}`}>
             0{index + 1}
           </span>
-          <h3 className={`mt-3 font-serif text-lg font-semibold ${titleClass}`}>
+          <h3 className={`mt-2 font-serif text-lg font-semibold ${titleClass}`}>
             {value.title}
           </h3>
           <p className={`mt-2 text-sm leading-relaxed ${bodyClass}`}>

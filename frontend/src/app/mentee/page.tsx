@@ -13,7 +13,7 @@ export default function MenteeDashboardPage() {
   return (
     <DashboardShell requiredRole="mentee">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
+        <p className="text-sm font-medium text-amber-700">
           Mentee
         </p>
         <h1 className="mt-3 font-serif text-3xl font-semibold text-emerald-950 sm:text-4xl">

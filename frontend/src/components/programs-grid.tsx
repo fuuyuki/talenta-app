@@ -24,30 +24,24 @@ const programs = [
 
 export function ProgramsGrid() {
   return (
-    <div className="grid gap-5 md:grid-cols-3">
+    <div className="grid gap-x-10 gap-y-10 md:grid-cols-3">
       {programs.map((program) => (
         <article
           key={program.number}
-          className="group relative flex flex-col rounded-2xl border border-emerald-900/10 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          className="border-t border-rule-strong pt-5"
         >
-          <span className="font-serif text-sm font-semibold text-amber-600">
+          <span className="font-serif text-sm text-azure-600">
             {program.number}
           </span>
-          <h3 className="mt-4 font-serif text-xl font-semibold text-emerald-950">
+          <h3 className="mt-2 font-serif text-2xl font-semibold leading-snug text-ink">
             {program.title}
           </h3>
-          <p className="mt-3 flex-1 text-sm leading-relaxed text-stone-600">
+          <p className="mt-3 text-sm leading-relaxed text-ink-muted">
             {program.description}
           </p>
-          <ul className="mt-5 space-y-2 border-t border-emerald-900/10 pt-4 text-sm text-stone-600">
+          <ul className="mt-5 space-y-1.5 text-sm text-ink-muted">
             {program.points.map((point) => (
-              <li key={point} className="flex items-center gap-2.5">
-                <span
-                  aria-hidden="true"
-                  className="size-1.5 rounded-full bg-amber-500"
-                />
-                {point}
-              </li>
+              <li key={point}>{point}</li>
             ))}
           </ul>
         </article>

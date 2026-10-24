@@ -47,7 +47,7 @@ export function DashboardShell({
   const links = roleLinks.filter((link) => user?.roles.includes(link.role));
 
   return (
-    <div className="flex min-h-full flex-1 flex-col bg-[#fbf9f4] text-emerald-950">
+    <div className="flex min-h-full flex-1 flex-col bg-paper text-emerald-950">
       <header className="border-b border-emerald-900/10 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <Brand />

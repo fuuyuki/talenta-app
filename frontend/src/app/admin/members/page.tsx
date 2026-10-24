@@ -79,7 +79,7 @@ const primaryButton =
   'inline-flex w-full items-center justify-center rounded-xl bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70';
 
 const smallSecondary =
-  'rounded-full border border-emerald-900/15 px-3 py-1.5 text-xs font-semibold text-emerald-900 transition hover:border-emerald-900/40 hover:bg-[#fbf9f4] disabled:cursor-not-allowed disabled:opacity-60';
+  'rounded-full border border-emerald-900/15 px-3 py-1.5 text-xs font-semibold text-emerald-900 transition hover:border-emerald-900/40 hover:bg-paper disabled:cursor-not-allowed disabled:opacity-60';
 
 function friendlyMemberError(message: string) {
   if (!message || message === 'Failed to fetch') {
@@ -398,7 +398,7 @@ export default function AdminMembersPage() {
     <DashboardShell requiredRole="admin">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
+          <p className="text-sm font-medium text-amber-700">
             Administrasi
           </p>
           <h1 className="mt-3 font-serif text-3xl font-semibold text-emerald-950 sm:text-4xl">
@@ -704,7 +704,7 @@ export default function AdminMembersPage() {
                         </p>
                         <p className="truncate text-sm text-stone-500">
                           {member.email ?? 'Belum ada email'}
-                          {member.phone ? ` · ${member.phone}` : ''}
+                          {member.phone ? `, ${member.phone}` : ''}
                         </p>
 
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
@@ -798,7 +798,7 @@ export default function AdminMembersPage() {
                         onSubmit={(event) =>
                           handleCreateAccount(event, member)
                         }
-                        className="mt-4 rounded-xl border border-emerald-900/10 bg-[#fbf9f4] p-4"
+                        className="mt-4 rounded-xl border border-emerald-900/10 bg-paper p-4"
                         noValidate
                       >
                         <p className="text-sm font-semibold text-emerald-950">

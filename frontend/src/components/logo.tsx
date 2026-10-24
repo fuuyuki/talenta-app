@@ -1,29 +1,28 @@
+import Image from 'next/image';
 import Link from 'next/link';
 
-export function LogoMark({ className = '' }: { className?: string }) {
+/**
+ * The yayasan mark, cropped to the artwork (`viewBox` set on the source file).
+ * Rendered unoptimized so the SVG is served as an image, not through the
+ * raster optimizer.
+ */
+export function LogoMark({
+  className = '',
+  priority = false,
+}: {
+  className?: string;
+  priority?: boolean;
+}) {
   return (
-    <span
-      aria-hidden="true"
-      className={`grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-900 text-amber-300 ${className}`}
-    >
-      <svg
-        viewBox="0 0 32 32"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        className="size-5"
-      >
-        <rect x="7.5" y="7.5" width="17" height="17" rx="1.5" />
-        <rect
-          x="7.5"
-          y="7.5"
-          width="17"
-          height="17"
-          rx="1.5"
-          transform="rotate(45 16 16)"
-        />
-      </svg>
-    </span>
+    <Image
+      src="/brand/tin-logo.svg"
+      alt=""
+      width={640}
+      height={985}
+      unoptimized
+      priority={priority}
+      className={`h-10 w-auto ${className}`}
+    />
   );
 }
 
@@ -36,13 +35,20 @@ export function Brand({
   tone?: 'light' | 'dark';
   showSubtitle?: boolean;
 }) {
-  const titleClass = tone === 'dark' ? 'text-white' : 'text-emerald-950';
+  const titleClass = tone === 'dark' ? 'text-on-dark' : 'text-ink';
   const subtitleClass =
-    tone === 'dark' ? 'text-emerald-100/70' : 'text-emerald-800/70';
+    tone === 'dark' ? 'text-on-dark-muted' : 'text-ink-muted';
 
   return (
-    <Link href={href} className="flex items-center gap-2.5">
-      <LogoMark />
+    <Link href={href} className="flex items-center gap-3">
+      {tone === 'dark' ? (
+        <span className="grid place-items-center rounded-sm bg-paper p-1">
+          <LogoMark className="h-8" />
+        </span>
+      ) : (
+        <LogoMark priority />
+      )}
+
       <span className="flex flex-col leading-none">
         <span
           className={`font-serif text-lg font-semibold tracking-tight ${titleClass}`}
@@ -50,9 +56,7 @@ export function Brand({
           Talenta
         </span>
         {showSubtitle && (
-          <span
-            className={`mt-1 text-[10px] uppercase tracking-[0.16em] ${subtitleClass}`}
-          >
+          <span className={`mt-1 text-[11px] font-medium ${subtitleClass}`}>
             Insan Nusantara
           </span>
         )}
